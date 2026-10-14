@@ -54,7 +54,7 @@ The browser fixture found a real over-escaped update-block regex bug. It was fix
 - A real provider usage-limit hit and the target LLM's response correctly restating a real project. No automated Send is performed.
 - Full browser reload/recovery of every offline/session-expiry path. Queue helpers and recovery UI exist; multi-tab queue races and browser storage quota remain pilot risks.
 - Cross-device acceptance and two real admitted production accounts. User-scoped backend queries and simulated account isolation were tested.
-- CI on GitHub is configured; a local passing build is not a claim that a remote workflow has finished.
+- GitHub Actions run `38570641813` completed successfully for commit `5936d674f212aebd546273a65a4db3c255183893`: extension build, all test suites, TypeScript, ESLint, and production build passed from a clean checkout.
 - Hosted audience remains unchanged. Only admitted testers can access the existing pilot; GitHub Pages alone cannot run the Worker/D1 backend.
 
 ## Cost and privacy limits
