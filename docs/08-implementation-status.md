@@ -1,62 +1,89 @@
 # MVP Implementation Status
 
-## Deployment
+## Deployment identity
 
-- Private production pilot: <https://solvane.rareyew64.chatgpt.site>
+- Existing private pilot: <https://solvane.rareyew64.chatgpt.site>
 - GitHub source: <https://github.com/haiderimran019/Solvane>
 - Sites project: `appgprj_6ace76bef1208191b660ee30650b9ae6`
-- Published version: 3
-- Audience: custom/owner-private. Widening access is a separate product decision, not a deployment shortcut.
+- Previously published version: 3
+- Current workspace revision: Browser Bridge + Continuity Capsule redesign; deployment status must be updated only after a successful publish.
 
-## What is built
+## Implemented in this source revision
 
-The working application is in `apps/web` and currently includes:
+### Free Browser Bridge
 
-- Hosted account identity with per-user data ownership.
-- Cross-device project folders stored in D1.
-- Folder-specific ordering of Claude, Gemini, OpenAI, and Perplexity.
-- Opt-in automatic fallback controlled independently for every folder.
-- Encrypted bring-your-own-key provider connections.
-- Server-side adapters for the four provider APIs.
-- Persistent conversations with turn IDs and basic idempotent replay.
-- Perplexity citation capture.
-- Versioned portable snapshots generated after successful turns.
-- A responsive dashboard with folders, relay order, chat, connections, and state card.
-- A high-contrast Poppins visual system derived from the approved reference direction: geometric lime/yellow/green framing, deep-black relay surfaces, oversized white content cards, and responsive phone/tablet/desktop layouts.
+- Guided handoff to Claude, Gemini, ChatGPT, and Perplexity using the user's signed-in browser accounts.
+- A provider-specific confirmation dialog explains exactly what will be copied and uses a direct official-site link, avoiding browser popup blockers.
+- Reviewed relay prompt copied before the target website opens.
+- Manifest V3 companion extension with a floating Capsule control on the four supported provider sites.
+- Selected-text or bounded visible-context capture, local pending handoff, target-site insertion, and clipboard fallback.
+- The extension never reads cookies or hidden reasoning and never presses Send.
+
+### Continuity Capsule workspace
+
+- Account-scoped, cross-device project folders and provider preference order.
+- Editable capsule fields: objective, current task, decisions, constraints, completed changes, open questions, do-not-repeat items, artifacts, sources, and next step.
+- User corrections create new snapshot versions instead of rewriting history.
+- Trust Preview, Context Health, approximate 1,500-token budget, missing-context warning, Quick Capture, Rescue Session, version restore, and audited handoff history.
+- Privacy switches for decisions, constraints, artifacts/sources, and fenced-code exclusion.
+- `handoff.md` export for Codex and Claude Code.
+- Clickable account profile with live record totals, sign-out, cookie/analytics controls, and full per-user JSON export.
+- Consent-gated allowlisted product analytics with no prompt, Capsule, password, provider-cookie, or browsing-history collection.
+- Branded inline provider marks, serif interface typography, and hover/pressed feedback across desktop and phone navigation.
+
+### Optional API Automation
+
+- Encrypted per-user BYOK provider connections.
+- Server-side Claude, Gemini, OpenAI, and Perplexity adapters.
+- Folder-specific provider order and guarded automatic fallback.
+- Persistent API conversations, idempotent turn replay, Perplexity citations, and post-turn capsule reduction.
+- Developer relay console in the dashboard.
 
 ## Runtime flow
 
-1. Sites authenticates the visitor and supplies a stable user ID to server routes.
-2. The dashboard loads only folders and provider status belonging to that user.
-3. The user creates/selects a folder and orders the four providers.
-4. The router calls the first configured provider with the newest user turn held in memory. Eligible rate-limit, timeout, or service failures move to the next connected provider when auto fallback is enabled.
-5. After a provider succeeds, the user turn and normalized assistant response are stored atomically with citations, attempts, and provider identity. Failed attempts do not create duplicate user messages.
-6. The dashboard calls the snapshot endpoint, which asks the first available low-cost model for bounded JSON and falls back to deterministic state if reduction fails.
-7. Any device signed into the same Site account reads the same folders, conversations, settings, and snapshots.
+### Browser Bridge
 
-## Required hosted secret
+1. Sites authenticates the visitor and loads their D1-backed projects and latest capsule.
+2. The user edits or rescues the capsule and inspects the Trust Preview.
+3. Continue In copies the bounded capsule, opens the chosen provider, and stores a `handoff.launched` audit event.
+4. The extension can insert a device-local pending capsule into a supported provider composer; manual paste remains the fallback.
+5. The user reviews and sends in the provider product.
 
-`PROVIDER_CREDENTIAL_MASTER_KEY` encrypts user-supplied provider keys using AES-GCM. It must exist before BYOK connections are accepted. Optional workspace-owned keys are `OPENAI_API_KEY`, `ANTHROPIC_API_KEY`, `GEMINI_API_KEY`, and `PERPLEXITY_API_KEY`.
+### API Automation
 
-## Honest verification boundary
+1. The user connects an encrypted provider key in Modes & settings.
+2. The API console sends through the folder's preferred route.
+3. Eligible failures may move to the next connected provider when fallback is enabled.
+4. A completed turn persists with provider identity and citations, then produces a new capsule version.
 
-Verified locally on 2026-10-14:
+## Required hosted secret for BYOK
 
-- TypeScript completed with no errors.
-- The production build completed for all dashboard and API routes.
-- The local D1 migration applied successfully.
-- Browser QA covered folder creation and switching, provider-order changes, reload persistence, auto-fallback persistence, connection forms, modal dismissal, notification dismissal, snapshot refresh, and the failed-provider path.
-- The failed-provider path returns the expected error without persisting a duplicate user turn.
-- Responsive checks passed at 390 px, 1024 px, and 1440 px with no horizontal overflow; the final browser console had no warnings or errors.
-- The local provider-secret file is explicitly ignored by Git.
-- The private production deployment succeeded and its unauthenticated boundary correctly presents ChatGPT sign-in.
+`PROVIDER_CREDENTIAL_MASTER_KEY` encrypts user-supplied provider keys using AES-GCM. Browser Bridge does not require it. Optional workspace-owned API secrets remain `OPENAI_API_KEY`, `ANTHROPIC_API_KEY`, `GEMINI_API_KEY`, and `PERPLEXITY_API_KEY`.
 
-Still requires real provider credentials and owner consent at the hosted sign-in screen:
+## Verification boundary
 
-- A live response from each external provider.
-- A forced rate-limit handoff across every provider pair.
-- Snapshot-fidelity evaluation against the documented rubric.
-- Authenticated production data creation from a second physical device.
-- A second-user pilot test after the owner chooses an invite-only tester or deliberately widens the access policy.
+Verified in the current workspace on 2026-10-14:
 
-A successful build does not prove that an external account has quota or that a configured model ID is enabled for that account. Those checks are deliberately reported as unverified until real credentials are connected.
+- The extension manifest and content script parse successfully.
+- The extension ZIP passes archive integrity testing and the local app download route returns HTTP 200 with `application/zip`.
+- TypeScript, ESLint, and the production Vinext build complete successfully after the dual-mode redesign.
+- Authenticated local browser QA passed for capsule editing and saving, version history, Trust Preview, clipboard equality, Quick Handoff, handoff audit persistence, settings, API connection modal, and reload persistence.
+- The browser console contained no warnings or errors during the tested flow.
+- Responsive visual QA passed at 390 px, 760 px, 900 px, 1,100 px, and 1,280 px with no page-level horizontal overflow.
+- Preferred-route arrows remained inside every provider card at all five widths; smaller surfaces use an intentional internal horizontal scroller.
+- All four provider dialogs expose direct `_blank` links to the correct official destinations, and the Claude launch opened its official sign-in/new-chat route in a separate tab.
+- The handoff dialog fits completely inside a 390 × 844 phone viewport.
+- The interface accent and interactive yellow resolve to the same `#d8ff32` design token.
+
+Must still be completed before calling this revision production-ready:
+
+- Real extension insertion checks on the current DOM of all four provider websites.
+- Live API response and forced fallback checks using valid provider credentials and quota.
+- Authenticated production deployment of this revision.
+- Cross-device test using one account and account-isolation test using a second admitted user.
+- Google and GitHub login require real OAuth applications, production callback URLs, secret configuration, and end-to-end provider testing. ChatGPT remains the only active sign-in method in this source revision.
+- Privacy policy, data-retention/deletion policy, processor inventory, and jurisdiction-specific legal review before a public pilot.
+
+Provider website markup and model availability change independently of Solvane. A passing build cannot prove live extension insertion, provider quota, model access, or second-account access.
+
+Follow [the real-world test guide](11-real-world-test-guide.md) for a repeatable browser, account, cross-device, extension, and API-mode acceptance pass.

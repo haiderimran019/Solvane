@@ -9,7 +9,14 @@ export type ProviderId = (typeof PROVIDER_IDS)[number];
 
 export const PROVIDERS: Record<
   ProviderId,
-  { name: string; shortName: string; role: string; defaultModel: string; color: string }
+  {
+    name: string;
+    shortName: string;
+    role: string;
+    defaultModel: string;
+    color: string;
+    webUrl: string;
+  }
 > = {
   claude: {
     name: "Claude",
@@ -17,6 +24,7 @@ export const PROVIDERS: Record<
     role: "Thoughtful builder",
     defaultModel: "claude-3-5-haiku-latest",
     color: "#f59e7a",
+    webUrl: "https://claude.ai/new",
   },
   gemini: {
     name: "Gemini",
@@ -24,13 +32,15 @@ export const PROVIDERS: Record<
     role: "Long-context analyst",
     defaultModel: "gemini-2.5-flash",
     color: "#7cb4ff",
+    webUrl: "https://gemini.google.com/app",
   },
   openai: {
-    name: "OpenAI",
-    shortName: "OA",
-    role: "Fast generalist",
+    name: "ChatGPT",
+    shortName: "GP",
+    role: "Fast creative partner",
     defaultModel: "gpt-4o-mini",
     color: "#70d6b3",
+    webUrl: "https://chatgpt.com/",
   },
   perplexity: {
     name: "Perplexity",
@@ -38,6 +48,7 @@ export const PROVIDERS: Record<
     role: "Cited research",
     defaultModel: "sonar",
     color: "#b892ff",
+    webUrl: "https://www.perplexity.ai/",
   },
 };
 
@@ -51,6 +62,9 @@ export type RelaySnapshot = {
   completed: string[];
   openQuestions: string[];
   nextAction: string;
+  doNotRepeat: string[];
+  artifacts: string[];
+  sources: string[];
 };
 
 export const EMPTY_SNAPSHOT: RelaySnapshot = {
@@ -61,7 +75,25 @@ export const EMPTY_SNAPSHOT: RelaySnapshot = {
   completed: [],
   openQuestions: [],
   nextAction: "Send a message to establish the project state.",
+  doNotRepeat: [],
+  artifacts: [],
+  sources: [],
 };
+
+export function normalizeSnapshot(value: Partial<RelaySnapshot> | null | undefined): RelaySnapshot {
+  return {
+    objective: value?.objective || EMPTY_SNAPSHOT.objective,
+    currentTask: value?.currentTask || EMPTY_SNAPSHOT.currentTask,
+    constraints: Array.isArray(value?.constraints) ? value.constraints : [],
+    decisions: Array.isArray(value?.decisions) ? value.decisions : [],
+    completed: Array.isArray(value?.completed) ? value.completed : [],
+    openQuestions: Array.isArray(value?.openQuestions) ? value.openQuestions : [],
+    nextAction: value?.nextAction || EMPTY_SNAPSHOT.nextAction,
+    doNotRepeat: Array.isArray(value?.doNotRepeat) ? value.doNotRepeat : [],
+    artifacts: Array.isArray(value?.artifacts) ? value.artifacts : [],
+    sources: Array.isArray(value?.sources) ? value.sources : [],
+  };
+}
 
 export function isProviderId(value: unknown): value is ProviderId {
   return typeof value === "string" && PROVIDER_IDS.includes(value as ProviderId);

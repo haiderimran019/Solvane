@@ -22,6 +22,8 @@ The product holds highly sensitive project context. The MVP must minimize collec
 - Credential envelope encryption or a managed secrets provider; database stores only a secret reference and metadata.
 - Server-only provider calls. Browser code never receives platform keys.
 - Structured logs with redaction and allowlisted fields.
+- Explicit consent before optional product analytics. Essential authentication and device preferences remain separate from analytics consent.
+- A self-service account data inventory and JSON export that excludes provider API keys and encryption material.
 - Project deletion workflow that covers event content, snapshots, artifacts, and credential references.
 - Dependency scanning, secret scanning, and least-privilege deployment identities.
 
@@ -48,3 +50,14 @@ Before a handoff, Solvane must clearly show the destination provider. The user i
 ## 7. Privacy decisions still required
 
 Before public launch, the founder must decide and document: data retention period, whether provider prompts/outputs may be used to improve Solvane, analytics vendor list, legal basis/region, BYOK versus managed keys, account deletion SLA, and incident-response contact.
+
+## 8. Implemented consent and data boundary
+
+- Essential Sites authentication and local device preferences keep the service functional.
+- Optional first-party analytics is off until the user chooses it in the cookie banner.
+- Analytics accepts only allowlisted event names and the metadata keys `analytics`, `mode`, `provider`, and `surface`.
+- Analytics never receives prompt text, Capsule fields, messages, provider cookies, passwords, API keys, or browsing history.
+- The Profile & Data Center shows account-scoped record totals and exports projects, messages, Capsule versions, handoff events, safe API-connection metadata, and analytics events.
+- API credentials remain encrypted and are excluded from export. No founder-wide content dashboard or hidden administrator access is implemented.
+
+These controls support a safer pilot but do not by themselves establish compliance with every jurisdiction. A public launch still requires an accurate privacy notice, retention/deletion policy, processor inventory, and qualified legal review.

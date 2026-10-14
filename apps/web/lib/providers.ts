@@ -10,6 +10,17 @@ export type ProviderResult = {
   requestId?: string;
 };
 
+type ClaudeResponse = { content?: Array<{ type?: string; text?: string }> };
+type GeminiResponse = { candidates?: Array<{ content?: { parts?: Array<{ text?: string }> } }> };
+type OpenAIResponse = {
+  output_text?: string;
+  output?: Array<{ content?: Array<{ type?: string; text?: string }> }>;
+};
+type PerplexityResponse = {
+  citations?: string[];
+  choices?: Array<{ message?: { content?: string } }>;
+};
+
 export class ProviderCallError extends Error {
   constructor(
     message: string,
@@ -44,16 +55,16 @@ export function configuredModel(
   return storedModel?.trim() || models[provider] || PROVIDERS[provider].defaultModel;
 }
 
-async function requestJson(
+async function requestJson<T>(
   provider: ProviderId,
   url: string,
   init: RequestInit,
-): Promise<{ data: any; response: Response }> {
+): Promise<{ data: T; response: Response }> {
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), 45_000);
   try {
     const response = await fetch(url, { ...init, signal: controller.signal });
-    const data = await response.json().catch(() => ({}));
+    const data = (await response.json().catch(() => ({}))) as T;
     if (!response.ok) {
       const retryable = response.status === 429 || response.status >= 500;
       throw new ProviderCallError(
@@ -93,7 +104,7 @@ export async function callProvider(args: {
   const maxTokens = args.maxTokens ?? 1200;
 
   if (provider === "claude") {
-    const { data, response } = await requestJson(
+    const { data, response } = await requestJson<ClaudeResponse>(
       provider,
       "https://api.anthropic.com/v1/messages",
       {
@@ -107,8 +118,8 @@ export async function callProvider(args: {
       },
     );
     const text = (data.content ?? [])
-      .filter((block: any) => block.type === "text")
-      .map((block: any) => block.text)
+      .filter((block) => block.type === "text")
+      .map((block) => block.text ?? "")
       .join("\n");
     return {
       text,
@@ -122,7 +133,7 @@ export async function callProvider(args: {
       role: message.role === "assistant" ? "model" : "user",
       parts: [{ text: message.content }],
     }));
-    const { data, response } = await requestJson(
+    const { data, response } = await requestJson<GeminiResponse>(
       provider,
       `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent`,
       {
@@ -136,7 +147,7 @@ export async function callProvider(args: {
       },
     );
     const text = (data.candidates?.[0]?.content?.parts ?? [])
-      .map((part: any) => part.text ?? "")
+      .map((part) => part.text ?? "")
       .join("\n");
     return {
       text,
@@ -150,7 +161,7 @@ export async function callProvider(args: {
       { role: "developer", content: system },
       ...messages.map((message) => ({ role: message.role, content: message.content })),
     ];
-    const { data, response } = await requestJson(
+    const { data, response } = await requestJson<OpenAIResponse>(
       provider,
       "https://api.openai.com/v1/responses",
       {
@@ -165,9 +176,9 @@ export async function callProvider(args: {
     const text =
       data.output_text ??
       (data.output ?? [])
-        .flatMap((item: any) => item.content ?? [])
-        .filter((item: any) => item.type === "output_text")
-        .map((item: any) => item.text)
+        .flatMap((item) => item.content ?? [])
+        .filter((item) => item.type === "output_text")
+        .map((item) => item.text ?? "")
         .join("\n");
     return {
       text,
@@ -176,7 +187,7 @@ export async function callProvider(args: {
     };
   }
 
-  const { data, response } = await requestJson(
+  const { data, response } = await requestJson<PerplexityResponse>(
     provider,
     "https://api.perplexity.ai/chat/completions",
     {

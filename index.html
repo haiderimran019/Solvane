@@ -3,15 +3,15 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <meta name="description" content="Solvane keeps project state portable across Claude, Gemini, OpenAI, and Perplexity." />
+    <meta name="description" content="Solvane Continuity Capsules carry active work across Claude, Gemini, ChatGPT, Perplexity, Codex, and Claude Code." />
     <title>Solvane — MVP Test Guide</title>
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700;800&amp;display=swap" rel="stylesheet" />
+    <link href="https://fonts.googleapis.com/css2?family=Source+Serif+4:opsz,wght@8..60,400;8..60,600;8..60,700;8..60,800&amp;display=swap" rel="stylesheet" />
     <style>
-      :root { --ink:#050505; --paper:#f5f5ed; --signal:#c8ff00; --yellow:#ffe100; --green:#00a85a; }
+      :root { --ink:#050505; --paper:#f5f5ed; --signal:#d8ff32; --yellow:var(--signal); --green:#00a85a; }
       * { box-sizing:border-box; }
-      body { margin:0; min-height:100vh; color:var(--ink); font-family:Poppins,Arial,sans-serif; background:linear-gradient(145deg,var(--yellow),#ecf100 48%,var(--signal)); }
+      body { margin:0; min-height:100vh; color:var(--ink); font-family:"Source Serif 4",Georgia,serif; background:linear-gradient(145deg,var(--yellow),#ecf100 48%,var(--signal)); }
       body::before { content:""; position:fixed; inset:55% -10% -30% 30%; z-index:-1; transform:rotate(-12deg); background:var(--green); }
       main { width:min(1160px,calc(100% - 32px)); margin:32px auto; overflow:hidden; border:1px solid rgba(255,255,255,.55); border-radius:34px; background:var(--ink); box-shadow:0 32px 100px rgba(0,0,0,.28); }
       header { display:flex; align-items:center; justify-content:space-between; gap:24px; padding:22px 28px; color:#fff; border-bottom:1px solid #292929; }
@@ -50,7 +50,7 @@
         <div>
           <p class="eyebrow">Cross-model project continuity</p>
           <h1>Start once.<br />Continue anywhere.</h1>
-          <p class="lead">Solvane keeps a compact, structured snapshot of your active project so you can continue across Claude, Gemini, OpenAI, and Perplexity without rebuilding the context from scratch.</p>
+          <p class="lead">Solvane turns your active project state into a compact Continuity Capsule so you can move across Claude, Gemini, ChatGPT, Perplexity, Codex, and Claude Code without rebuilding the work from scratch.</p>
           <div class="actions">
             <a class="button" href="https://solvane.rareyew64.chatgpt.site/">Open the live MVP</a>
             <a class="button secondary" href="https://github.com/haiderimran019/Solvane">View source</a>
@@ -58,18 +58,18 @@
         </div>
         <aside class="panel">
           <h2>What testers can try</h2>
-          <p>Create separate project folders, set the relay order for all four models, connect encrypted bring-your-own API keys, send a project message, enable or disable automatic fallback, refresh the portable state snapshot, inspect citations from Perplexity, and sign in on another device to confirm that folders, settings, messages, and snapshots stay with the same account while remaining isolated from other accounts.</p>
+          <p>Create project folders, edit and version a Continuity Capsule, inspect the exact Trust Preview, change the four-model preference order, use Context Health and privacy controls, hand off through free Browser Bridge, export a coding-agent handoff, inspect history, and optionally connect encrypted API keys for automated relay and fallback. Sign in on another device to confirm that projects and capsules stay with the same account.</p>
           <div class="features">
-            <div class="feature"><strong>4 models</strong><span>Claude, Gemini, OpenAI, Perplexity</span></div>
-            <div class="feature"><strong>Fast relay</strong><span>Ordered fallback between connected providers</span></div>
-            <div class="feature"><strong>Portable state</strong><span>Small, inspectable project snapshots</span></div>
-            <div class="feature"><strong>Private BYOK</strong><span>Encrypted keys stay server-side</span></div>
+            <div class="feature"><strong>Free bridge</strong><span>Use your existing signed-in AI accounts</span></div>
+            <div class="feature"><strong>4 providers</strong><span>Claude, Gemini, ChatGPT, Perplexity</span></div>
+            <div class="feature"><strong>Continuity Capsule</strong><span>Small, editable, versioned project state</span></div>
+            <div class="feature"><strong>API mode</strong><span>Optional encrypted BYOK automation</span></div>
           </div>
         </aside>
       </section>
       <section class="test">
         <h2>Tester note</h2>
-        <p>Use test projects and your own provider API keys only. A successful interface test confirms the Solvane workflow; live model responses and automatic fallback also depend on the connected provider account having access, quota, and a supported model. Never paste passwords, payment information, or confidential production data into an MVP test.</p>
+        <p>Use test projects only. Browser Bridge should copy the reviewed capsule, open the chosen provider, and leave the final Send action to you. Automatic extension insertion depends on each provider’s current page markup, so also test the clipboard fallback. API Automation is optional and requires your own provider keys, access, quota, and supported model. Never paste passwords, payment information, or confidential production data into an MVP test.</p>
       </section>
       <footer>Solvane MVP · Backend-first relay workspace · October 2026</footer>
     </main>

@@ -24,6 +24,8 @@ Snapshots are not evidence. They are versioned, inspectable interpretations of e
 | Claim-source link | `claim_id`, `citation_id`, `support_type` | Prevents citations becoming detached from their claims. |
 | Provider credential | `id`, `owner_id`, `provider`, `secret_ref`, `mode` | Stores a secret reference only, never plaintext keys. |
 
+The implemented JSON snapshot also carries bounded `doNotRepeat`, `artifacts`, and `sources` arrays. Older snapshot rows are normalized on read so schema evolution does not break existing projects.
+
 ## 3. Event types
 
 | Event | Meaning |

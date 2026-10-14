@@ -4,6 +4,7 @@ import { events, folders, messages, snapshots } from "../../../db/schema";
 import { callProvider } from "../../../lib/providers";
 import {
   EMPTY_SNAPSHOT,
+  normalizeSnapshot,
   parseProviderOrder,
   type RelaySnapshot,
 } from "../../../lib/product";
@@ -32,6 +33,9 @@ function parseSnapshot(text: string): RelaySnapshot | null {
       completed: cleanList(value.completed),
       openQuestions: cleanList(value.openQuestions),
       nextAction: String(value.nextAction ?? "").slice(0, 300),
+      doNotRepeat: cleanList(value.doNotRepeat),
+      artifacts: cleanList(value.artifacts),
+      sources: cleanList(value.sources),
     };
   } catch {
     return null;
@@ -53,13 +57,42 @@ function deterministicSnapshot(
     completed: previous?.completed ?? [],
     openQuestions: previous?.openQuestions ?? [],
     nextAction: "Continue from the latest user request and assistant response.",
+    doNotRepeat: previous?.doNotRepeat ?? [],
+    artifacts: previous?.artifacts ?? [],
+    sources: previous?.sources ?? [],
   };
+}
+
+export async function GET(request: Request) {
+  const user = await apiUser();
+  if (!user) return unauthorized();
+  const folderId = new URL(request.url).searchParams.get("folderId")?.trim();
+  if (!folderId) return Response.json({ error: "folderId is required." }, { status: 400 });
+
+  const rows = await getDb()
+    .select()
+    .from(snapshots)
+    .where(and(eq(snapshots.folderId, folderId), eq(snapshots.userId, user.userId)))
+    .orderBy(desc(snapshots.version))
+    .limit(12);
+
+  return Response.json({
+    snapshots: rows.map((row) => ({
+      version: row.version,
+      state: normalizeSnapshot(JSON.parse(row.state) as Partial<RelaySnapshot>),
+      createdAt: row.createdAt,
+      sourceMessageCount: row.sourceMessageCount,
+    })),
+  });
 }
 
 export async function POST(request: Request) {
   const user = await apiUser();
   if (!user) return unauthorized();
-  const payload = (await request.json()) as { folderId?: string };
+  const payload = (await request.json()) as {
+    folderId?: string;
+    state?: Partial<RelaySnapshot>;
+  };
   const folderId = payload.folderId?.trim();
   if (!folderId) return Response.json({ error: "folderId is required." }, { status: 400 });
 
@@ -84,11 +117,29 @@ export async function POST(request: Request) {
     .where(and(eq(snapshots.folderId, folderId), eq(snapshots.userId, user.userId)))
     .orderBy(desc(snapshots.version))
     .limit(1);
-  const previous = prior ? (JSON.parse(prior.state) as RelaySnapshot) : undefined;
+  const previous = prior
+    ? normalizeSnapshot(JSON.parse(prior.state) as Partial<RelaySnapshot>)
+    : undefined;
   let state: RelaySnapshot | null = null;
   let reducedBy = "deterministic";
 
-  for (const provider of parseProviderOrder(folder.providerOrder)) {
+  if (payload.state) {
+    state = normalizeSnapshot({
+      objective: String(payload.state.objective ?? "").trim().slice(0, 300),
+      currentTask: String(payload.state.currentTask ?? "").trim().slice(0, 300),
+      constraints: cleanList(payload.state.constraints),
+      decisions: cleanList(payload.state.decisions),
+      completed: cleanList(payload.state.completed),
+      openQuestions: cleanList(payload.state.openQuestions),
+      nextAction: String(payload.state.nextAction ?? "").trim().slice(0, 300),
+      doNotRepeat: cleanList(payload.state.doNotRepeat),
+      artifacts: cleanList(payload.state.artifacts),
+      sources: cleanList(payload.state.sources),
+    });
+    reducedBy = "user";
+  }
+
+  for (const provider of state ? [] : parseProviderOrder(folder.providerOrder)) {
     const credential = await resolveProviderCredential(user.userId, provider);
     if (!credential) continue;
     try {
@@ -98,7 +149,7 @@ export async function POST(request: Request) {
         model: credential.model,
         maxTokens: 650,
         system:
-          "Compress the project into valid JSON only. Never invent facts. Keys: objective, currentTask, constraints, decisions, completed, openQuestions, nextAction. Arrays contain short strings. Keep the entire result under 900 tokens.",
+          "Compress the project into valid JSON only. Never invent facts. Keys: objective, currentTask, constraints, decisions, completed, openQuestions, nextAction, doNotRepeat, artifacts, sources. Arrays contain short strings. Keep the entire result under 900 tokens.",
         messages: [
           {
             role: "user",
@@ -132,7 +183,7 @@ export async function POST(request: Request) {
       id: crypto.randomUUID(),
       folderId,
       userId: user.userId,
-      type: "snapshot.published",
+      type: reducedBy === "user" ? "snapshot.corrected" : "snapshot.published",
       data: JSON.stringify({ version, reducedBy, sourceMessageCount: rows.length }),
       createdAt,
     }),

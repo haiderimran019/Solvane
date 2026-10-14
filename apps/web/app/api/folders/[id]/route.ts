@@ -5,7 +5,9 @@ import {
   EMPTY_SNAPSHOT,
   PROVIDER_IDS,
   isProviderId,
+  normalizeSnapshot,
   parseProviderOrder,
+  type RelaySnapshot,
 } from "../../../../lib/product";
 import { apiUser, unauthorized } from "../../../../lib/server";
 
@@ -50,7 +52,11 @@ export async function GET(_: Request, context: RouteContext) {
       citations: JSON.parse(message.citations || "[]"),
     })),
     snapshot: snapshot
-      ? { version: snapshot.version, state: JSON.parse(snapshot.state), createdAt: snapshot.createdAt }
+      ? {
+          version: snapshot.version,
+          state: normalizeSnapshot(JSON.parse(snapshot.state) as Partial<RelaySnapshot>),
+          createdAt: snapshot.createdAt,
+        }
       : { version: 0, state: EMPTY_SNAPSHOT, createdAt: null },
   });
 }

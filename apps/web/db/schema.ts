@@ -102,3 +102,19 @@ export const events = sqliteTable(
   },
   (table) => [index("events_folder_created_idx").on(table.folderId, table.createdAt)],
 );
+
+export const usageEvents = sqliteTable(
+  "usage_events",
+  {
+    id: text("id").primaryKey(),
+    userId: text("user_id").notNull(),
+    eventName: text("event_name").notNull(),
+    path: text("path").notNull(),
+    metadata: text("metadata").notNull().default("{}"),
+    createdAt: text("created_at").notNull().default(sql`CURRENT_TIMESTAMP`),
+  },
+  (table) => [
+    index("usage_events_user_created_idx").on(table.userId, table.createdAt),
+    index("usage_events_name_created_idx").on(table.eventName, table.createdAt),
+  ],
+);

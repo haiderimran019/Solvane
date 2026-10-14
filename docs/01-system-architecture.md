@@ -8,11 +8,23 @@
 4. **Handoffs are observable and reviewable.** The user can see what was carried forward and why a switch occurred.
 5. **Fail safely.** A transient provider failure cannot duplicate a turn or erase the active state.
 
+## 1.1 Dual-mode product boundary
+
+Solvane exposes the same canonical project state through two execution paths:
+
+- **Browser Bridge:** the dashboard or extension builds a user-reviewed capsule, opens a consumer AI site, and inserts or copies the prompt. The user remains responsible for Send.
+- **API Automation:** the backend sends the capsule and current request through an encrypted provider adapter, records the response, and applies guarded fallback when enabled.
+
+Browser Bridge is the free default. API Automation is retained for serious developer use; neither mode pretends to transfer hidden provider reasoning.
+
 ## 2. Logical architecture
 
 ```mermaid
 flowchart LR
   U[User interface] --> API[Solvane API]
+  U --> BB[Browser Bridge]
+  BB --> CW[Claude / Gemini / ChatGPT / Perplexity websites]
+  BB --> EX[Companion extension or clipboard]
   API --> AUTH[Authentication and project access]
   API --> SVC[Session service]
   SVC --> ES[(Append-only event store)]
@@ -107,6 +119,7 @@ Required infrastructure:
 - Sites authentication headers as the stable per-Site account identity.
 - Encrypted object storage only if file/source artifacts are added after the text-first MVP.
 - Hosted runtime secrets for the credential-encryption master key and optional platform provider credentials.
+- A static Manifest V3 extension package for progressive-enhancement insertion on supported AI websites.
 
 ## 8. Concurrency and idempotency
 

@@ -1,5 +1,7 @@
 # MVP API Contract
 
+> Browser Bridge can operate without provider API credentials. These authenticated endpoints persist projects, capsules, handoff audit records, and optional API Automation state.
+
 ## 1. API principles
 
 - All endpoints require authenticated project ownership.

@@ -1,53 +1,46 @@
-# Solvane — MVP Architecture Pack
+# Solvane
 
-**Selected product name:** Solvane.
+Solvane is a continuity layer for people who work across Claude, Gemini, ChatGPT, Perplexity, Codex, and Claude Code. It turns the active state of a project into a small, inspectable **Continuity Capsule** and carries that capsule to the next model.
 
-Solvane is a backend-first workspace that preserves a project’s working state while a user moves between AI providers. It does not copy private chats from provider-owned consumer applications. Instead, the user works through Solvane, which records the session, creates a portable state snapshot, and sends that snapshot to the next chosen provider.
+The product has two complementary modes:
 
-## The MVP in one sentence
+| Mode | For | Cost model | Handoff |
+| --- | --- | --- | --- |
+| Browser Bridge | Most users | Uses existing signed-in AI accounts; no provider API key | Review capsule, open target model, insert or paste |
+| API Automation | Developers and power users | Bring-your-own provider APIs today; managed usage can be added later | Server routing, citations, guarded automatic fallback |
 
-When an AI provider is unavailable, rate-limited, or no longer the best fit, Solvane continues the same project with another provider without making the user re-explain the work.
+## What the MVP includes
 
-## Architecture documents
+- Account-scoped, cross-device project workspaces backed by D1.
+- Editable, versioned Continuity Capsules with objective, current task, decisions, constraints, changes, open questions, do-not-repeat guidance, artifacts, sources, and a locked next step.
+- One-click Browser Bridge handoffs to Claude, Gemini, ChatGPT, and Perplexity.
+- A Manifest V3 extension that captures visible/selected context, opens the target provider, and inserts the capsule without pressing Send.
+- Trust Preview, Context Health, memory-budget estimate, privacy controls, quick capture, handoff history, and capsule rollback.
+- Working profile and data center with live account totals, cookie/analytics choices, sign-out, and a complete user-owned JSON export.
+- Consent-gated first-party product analytics using a strict event and metadata allowlist; prompt and capsule content is excluded.
+- `handoff.md` export for Codex and Claude Code.
+- Optional encrypted BYOK API connections, ordered routing, automatic fallback, a developer relay console, persistent messages, and citations.
 
-| Document | Purpose |
+## Repository map
+
+| Path | Purpose |
 | --- | --- |
-| [Product brief](docs/00-product-brief.md) | Problem, audience, scope, and success criteria |
-| [System architecture](docs/01-system-architecture.md) | Components, data flow, deployment boundaries, and handoff sequence |
-| [State model](docs/02-state-model.md) | Canonical data entities and portable snapshot contract |
-| [API contract](docs/03-api-contract.md) | MVP-facing HTTP endpoints, lifecycle, and errors |
-| [Provider adapters](docs/04-provider-adapters.md) | Claude, Gemini, OpenAI, and Perplexity integration boundary |
-| [Security and privacy](docs/05-security-privacy.md) | Key handling, retention, deletion, and threat controls |
-| [Reliability and quality](docs/06-reliability-quality.md) | Failover policy, observability, fidelity evaluation, and tests |
-| [Delivery plan](docs/07-delivery-plan.md) | Incremental build plan, release gates, and risk register |
-| [Implementation status](docs/08-implementation-status.md) | What is built, configuration, and current verification evidence |
-| [Architecture decisions](docs/adr/README.md) | Decisions that must stay explicit as the system evolves |
+| `apps/web` | Authenticated Vinext/React app, Worker APIs, D1 schema, and hosted Site configuration |
+| `apps/extension` | Chromium Browser Bridge extension source |
+| `apps/web/public/solvane-extension.zip` | Installable MVP extension package generated from `apps/extension` |
+| `docs` | Product, architecture, state, API, security, reliability, delivery, and verification documentation |
+| `index.html` | Static tester entry page linking to the live product and source |
 
-## Non-negotiable product truths
+## Product truth
 
-- Solvane owns the session only when conversation traffic flows through its backend.
-- The canonical project state belongs to Solvane, not to any one model provider.
-- A compact snapshot accelerates handoff; an immutable event log makes the snapshot auditable and recoverable.
-- A switch must be visible to the user. Solvane never silently claims that two models are the same model.
-- Perplexity research requires a citation ledger; a prose summary alone is insufficient.
+Solvane preserves explicit working state; it does not copy hidden chain-of-thought, bypass provider limits, or guarantee identical output across models. Browser insertion depends on provider page markup, so clipboard paste remains the supported fallback. API automation remains available for users who need deterministic server-side orchestration.
 
-## Initial delivery boundary
+## Current hosted pilot
 
-The first production slice supports account-isolated users, multiple project folders, text conversations, manual switching, and safe automatic fallback after a provider error. The private pilot currently admits only its owner; additional pilot accounts can be granted access without changing the data model. It excludes team collaboration inside one folder, browser scraping of consumer chats, autonomous agents, vector-memory graphs, payment, and enterprise compliance features.
+- App: <https://solvane.rareyew64.chatgpt.site/>
+- Source: <https://github.com/haiderimran019/Solvane>
+- Hosted identity and data remain isolated per signed-in user.
 
-## Implemented stack
+ChatGPT is the active Sites-managed sign-in provider. Google and GitHub sign-in are intentionally marked as requiring setup until real OAuth applications, production callback URLs, and secrets are configured; the UI does not pretend those providers are connected.
 
-The working MVP lives in [`apps/web`](apps/web): a Vinext/React application deployed as a Cloudflare Worker through Sites, with hosted ChatGPT sign-in, D1 persistence, Drizzle migrations, server-only provider adapters, and encrypted per-user API credentials.
-
-The current local candidate includes the bold lime/yellow/green and black visual redesign, responsive phone/tablet/desktop layouts, and the corrected atomic message-persistence path. It remains behind the requested visual-approval gate before publication or GitHub push.
-
-## Private pilot
-
-- Production: <https://solvane.rareyew64.chatgpt.site>
-- Access: owner-private/custom while the MVP is being verified.
-- Cross-device behavior: sign in with the same ChatGPT account to load the same D1-backed folders, messages, provider order, credentials, and snapshots.
-- Multi-account behavior: every record is scoped to the authenticated account. Additional pilot accounts must be explicitly admitted before they can sign in.
-
-## Tester entry page
-
-The repository root includes [`index.html`](index.html), a static product and testing guide that links testers to the hosted application. The full authenticated MVP is a Worker-backed application and cannot run from GitHub Pages alone; its implementation lives in [`apps/web`](apps/web).
+Start with the [real-world test guide](docs/11-real-world-test-guide.md), then see [implementation status](docs/08-implementation-status.md) for the exact validation boundary before treating a revision as production-ready.
