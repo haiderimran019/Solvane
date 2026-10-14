@@ -7,11 +7,17 @@ const ALLOWED_EVENTS = new Set([
   "profile.opened",
   "mode.opened",
   "handoff.started",
+  "handoff.completed",
+  "checkpoint.previewed",
+  "checkpoint.saved",
+  "activation.first_save",
+  "continue.completed",
+  "provider.failed",
   "code_handoff.exported",
   "extension.downloaded",
 ]);
 
-const ALLOWED_METADATA_KEYS = new Set(["analytics", "mode", "provider", "surface"]);
+const ALLOWED_METADATA_KEYS = new Set(["analytics", "mode", "provider", "surface", "source", "redactions", "items", "version", "idempotent", "from", "to", "reason", "snapshotVersion"]);
 
 function cleanMetadata(value: unknown) {
   if (!value || typeof value !== "object" || Array.isArray(value)) return {};

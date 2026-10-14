@@ -20,8 +20,11 @@ The product has two complementary modes:
 - Consent-gated first-party product analytics using a strict event and metadata allowlist; prompt and capsule content is excluded.
 - `handoff.md` export for Codex and Claude Code.
 - Optional encrypted BYOK API connections, ordered routing, automatic fallback, a developer relay console, persistent messages, and citations.
+- Paste-based Checkpoint v1: redact → Gemini/local update-block extraction → reviewable diff → versioned save/undo → existing provider handoff.
+- Phase 2 Browser chip: click/`Alt+S` capture on four provider sites, explicit URL-to-project binding, local redaction, in-page diff drawer, ten-second undo, freshness label, and reviewed save-and-continue handoff.
+- Phase 3 automation: opt-in stable update-block detection, best-effort limit banners, checkpoint reminders, offline retry queue, API quota failover logs, onboarding/settings controls, privacy-safe metrics, and delete-all data control.
 
-## Repository map
+Read [the pilot acceptance workflow](docs/15-pilot-acceptance.md) to test the exact Save → review → version → Continue journey, configure Gemini, and understand the remaining live-provider gate.\n\n## Repository map
 
 | Path | Purpose |
 | --- | --- |
@@ -43,4 +46,4 @@ Solvane preserves explicit working state; it does not copy hidden chain-of-thoug
 
 ChatGPT is the active Sites-managed sign-in provider. Google and GitHub sign-in are intentionally marked as requiring setup until real OAuth applications, production callback URLs, and secrets are configured; the UI does not pretend those providers are connected.
 
-Start with the [real-world test guide](docs/11-real-world-test-guide.md), then see [implementation status](docs/08-implementation-status.md) for the exact validation boundary before treating a revision as production-ready.
+Start with the [real-world test guide](docs/11-real-world-test-guide.md), the [Phase 1 checkpoint guide](docs/12-checkpoint-phase1.md), the [Phase 2 browser chip guide](docs/13-browser-chip-phase2.md), the [Phase 3 automation guide](docs/14-phase3-automation.md), and [TEST_REPORT.md](TEST_REPORT.md). Then see [implementation status](docs/08-implementation-status.md) for the exact validation boundary before treating a revision as production-ready.

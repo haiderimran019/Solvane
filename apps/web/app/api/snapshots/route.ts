@@ -5,42 +5,29 @@ import { callProvider } from "../../../lib/providers";
 import {
   EMPTY_SNAPSHOT,
   normalizeSnapshot,
-  parseProviderOrder,
   type RelaySnapshot,
 } from "../../../lib/product";
 import { apiUser, resolveProviderCredential, unauthorized } from "../../../lib/server";
+import {extractCheckpoint} from "../../../lib/checkpoint-engine";
+import {reserveCheckpoint} from "../../../lib/checkpoint-limits";
+import {redactSecrets,diffCheckpoint,applyCheckpointPatch} from "../../../lib/checkpoint";
+import {env} from "cloudflare:workers";
+import { extensionOptions, withExtensionCors } from "../../../lib/extension-cors";
+
+export function OPTIONS(request: Request) {
+  return extensionOptions(request);
+}
 
 function cleanList(value: unknown): string[] {
   return Array.isArray(value)
     ? value
         .filter((item): item is string => typeof item === "string")
-        .map((item) => item.trim().slice(0, 120))
+        .map((item) => item.trim().slice(0, 300))
         .filter(Boolean)
-        .slice(0, 6)
+        .slice(0, 30)
     : [];
 }
 
-function parseSnapshot(text: string): RelaySnapshot | null {
-  try {
-    const match = text.match(/\{[\s\S]*\}/);
-    if (!match) return null;
-    const value = JSON.parse(match[0]) as Record<string, unknown>;
-    return {
-      objective: String(value.objective ?? "").slice(0, 300),
-      currentTask: String(value.currentTask ?? "").slice(0, 300),
-      constraints: cleanList(value.constraints),
-      decisions: cleanList(value.decisions),
-      completed: cleanList(value.completed),
-      openQuestions: cleanList(value.openQuestions),
-      nextAction: String(value.nextAction ?? "").slice(0, 300),
-      doNotRepeat: cleanList(value.doNotRepeat),
-      artifacts: cleanList(value.artifacts),
-      sources: cleanList(value.sources),
-    };
-  } catch {
-    return null;
-  }
-}
 
 function deterministicSnapshot(
   rows: Array<{ role: "user" | "assistant"; content: string }>,
@@ -63,11 +50,28 @@ function deterministicSnapshot(
   };
 }
 
+function parsePinnedFields(value: string | null | undefined): string[] {
+  try {
+    const parsed = JSON.parse(value || "[]") as unknown;
+    return Array.isArray(parsed)
+      ? parsed.filter((item): item is string => typeof item === "string").slice(0, 24)
+      : [];
+  } catch {
+    return [];
+  }
+}
+
+function changedSnapshotFields(previous: RelaySnapshot | undefined, next: RelaySnapshot): string[] {
+  if (!previous) return [];
+  const fields: Array<keyof RelaySnapshot> = ["objective", "currentTask", "constraints", "decisions", "completed", "openQuestions", "nextAction", "doNotRepeat", "artifacts", "sources"];
+  return fields.filter((field) => JSON.stringify(previous[field]) !== JSON.stringify(next[field]));
+}
+
 export async function GET(request: Request) {
   const user = await apiUser();
-  if (!user) return unauthorized();
+  if (!user) return withExtensionCors(unauthorized(), request);
   const folderId = new URL(request.url).searchParams.get("folderId")?.trim();
-  if (!folderId) return Response.json({ error: "folderId is required." }, { status: 400 });
+  if (!folderId) return withExtensionCors(Response.json({ error: "folderId is required." }, { status: 400 }), request);
 
   const rows = await getDb()
     .select()
@@ -76,25 +80,28 @@ export async function GET(request: Request) {
     .orderBy(desc(snapshots.version))
     .limit(12);
 
-  return Response.json({
+  return withExtensionCors(Response.json({
     snapshots: rows.map((row) => ({
       version: row.version,
       state: normalizeSnapshot(JSON.parse(row.state) as Partial<RelaySnapshot>),
       createdAt: row.createdAt,
       sourceMessageCount: row.sourceMessageCount,
+      schemaVersion: row.schemaVersion,
+      pinnedFields: parsePinnedFields(row.pinnedFields),
     })),
-  });
+  }), request);
 }
 
 export async function POST(request: Request) {
   const user = await apiUser();
-  if (!user) return unauthorized();
+  if (!user) return withExtensionCors(unauthorized(), request);
   const payload = (await request.json()) as {
     folderId?: string;
     state?: Partial<RelaySnapshot>;
+    pinnedFields?: unknown[];
   };
   const folderId = payload.folderId?.trim();
-  if (!folderId) return Response.json({ error: "folderId is required." }, { status: 400 });
+  if (!folderId) return withExtensionCors(Response.json({ error: "folderId is required." }, { status: 400 }), request);
 
   const db = getDb();
   const [folder] = await db
@@ -102,7 +109,7 @@ export async function POST(request: Request) {
     .from(folders)
     .where(and(eq(folders.id, folderId), eq(folders.userId, user.userId)))
     .limit(1);
-  if (!folder) return Response.json({ error: "Folder not found." }, { status: 404 });
+  if (!folder) return withExtensionCors(Response.json({ error: "Folder not found." }, { status: 404 }), request);
 
   const rows = await db
     .select({ role: messages.role, content: messages.content })
@@ -122,6 +129,7 @@ export async function POST(request: Request) {
     : undefined;
   let state: RelaySnapshot | null = null;
   let reducedBy = "deterministic";
+  let pinnedFields = parsePinnedFields(prior?.pinnedFields);
 
   if (payload.state) {
     state = normalizeSnapshot({
@@ -137,36 +145,29 @@ export async function POST(request: Request) {
       sources: cleanList(payload.state.sources),
     });
     reducedBy = "user";
+    const requestedPins = Array.isArray(payload.pinnedFields)
+      ? payload.pinnedFields.filter((field): field is string => typeof field === "string")
+      : [];
+    pinnedFields = [...new Set([...pinnedFields, ...requestedPins, ...changedSnapshotFields(previous, state)])].slice(0, 24);
   }
 
-  for (const provider of state ? [] : parseProviderOrder(folder.providerOrder)) {
-    const credential = await resolveProviderCredential(user.userId, provider);
-    if (!credential) continue;
-    try {
-      const result = await callProvider({
-        provider,
-        apiKey: credential.apiKey,
-        model: credential.model,
-        maxTokens: 650,
-        system:
-          "Compress the project into valid JSON only. Never invent facts. Keys: objective, currentTask, constraints, decisions, completed, openQuestions, nextAction, doNotRepeat, artifacts, sources. Arrays contain short strings. Keep the entire result under 900 tokens.",
-        messages: [
-          {
-            role: "user",
-            content: `Previous state:\n${JSON.stringify(previous ?? EMPTY_SNAPSHOT)}\n\nRecent conversation:\n${rows
-              .map((row) => `${row.role.toUpperCase()}: ${row.content}`)
-              .join("\n\n")}`,
-          },
-        ],
-      });
-      state = parseSnapshot(result.text);
-      if (state) reducedBy = provider;
-      break;
-    } catch {
-      continue;
-    }
+  if (!state) {
+    const credential=await resolveProviderCredential(user.userId,"gemini");
+    if(credential)try {
+      const text=redactSecrets(rows.map((row)=>row.role+": "+row.content).join("\n\n").slice(-30000)).text;
+      await reserveCheckpoint(user.userId,folderId,text.length+JSON.stringify(previous||EMPTY_SNAPSHOT).length,credential.source==="platform",request);
+      const config=env as unknown as Record<string,string>;
+      const patch=await extractCheckpoint({text,current:previous||EMPTY_SNAPSHOT,budget:Number(config.CHECKPOINT_TOKEN_BUDGET||1500),timeoutMs:Number(config.CHECKPOINT_TIMEOUT_MS||8500),generate:async(args)=>(await callProvider({provider:"gemini",apiKey:credential.apiKey,model:config.CHECKPOINT_GEMINI_MODEL||credential.model,system:args.system,messages:[{role:"user",content:args.content}],responseSchema:args.schema,maxTokens:2000,timeoutMs:args.timeoutMs})).text});
+      const keys=new Set(diffCheckpoint(previous||EMPTY_SNAPSHOT,patch,pinnedFields).map((item)=>item.key));
+      state=applyCheckpointPatch(previous||EMPTY_SNAPSHOT,patch,keys,pinnedFields);reducedBy="gemini";
+    }catch { reducedBy="deterministic"; }
   }
   state ??= deterministicSnapshot(rows, previous);
+  if (!payload.state) {
+    // Automatic reduction is a draft. Review is required before it becomes handoff state.
+    for (const field of pinnedFields) if (previous && field in previous) (state as Record<string, unknown>)[field] = previous[field as keyof RelaySnapshot];
+    return withExtensionCors(Response.json({snapshot:{version:prior?.version ?? 0,state,createdAt:prior?.createdAt ?? null,pinnedFields},draft:true,reducedBy}),request);
+  }
   const version = (prior?.version ?? 0) + 1;
   const createdAt = new Date().toISOString();
   await db.batch([
@@ -175,7 +176,10 @@ export async function POST(request: Request) {
       folderId,
       userId: user.userId,
       version,
+      schemaVersion: 1,
       state: JSON.stringify(state),
+      pinnedFields: JSON.stringify(pinnedFields),
+      sourceHash: null,
       sourceMessageCount: rows.length,
       createdAt,
     }),
@@ -188,5 +192,5 @@ export async function POST(request: Request) {
       createdAt,
     }),
   ]);
-  return Response.json({ snapshot: { version, state, createdAt }, reducedBy });
+  return withExtensionCors(Response.json({ snapshot: { version, state, createdAt, schemaVersion: 1, pinnedFields }, reducedBy }), request);
 }

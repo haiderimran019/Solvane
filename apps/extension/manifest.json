@@ -1,9 +1,27 @@
 {
   "manifest_version": 3,
   "name": "Solvane Browser Bridge",
-  "version": "0.1.0",
-  "description": "Carry a reviewed Continuity Capsule between Claude, Gemini, ChatGPT, and Perplexity without provider API keys.",
-  "permissions": ["storage", "clipboardWrite"],
+  "version": "0.3.0",
+  "description": "Save reviewed project checkpoints across AI chats. Reads on click; optional latest-message detection. Never sends chat messages automatically.",
+  "permissions": [
+    "storage",
+    "clipboardWrite"
+  ],
+  "background": {
+    "service_worker": "background.js"
+  },
+  "options_ui": {
+    "page": "options.html",
+    "open_in_tab": true
+  },
+  "host_permissions": [
+    "https://chatgpt.com/*",
+    "https://claude.ai/*",
+    "https://gemini.google.com/*",
+    "https://www.perplexity.ai/*",
+    "https://solvane.rareyew64.chatgpt.site/*",
+    "http://127.0.0.1:5173/*"
+  ],
   "content_scripts": [
     {
       "matches": [
@@ -12,7 +30,21 @@
         "https://gemini.google.com/*",
         "https://www.perplexity.ai/*"
       ],
-      "js": ["content.js"],
+      "js": [
+        "provider-config.js",
+        "checkpoint-core.js",
+        "content.js"
+      ],
+      "run_at": "document_idle"
+    },
+    {
+      "matches": [
+        "https://solvane.rareyew64.chatgpt.site/*",
+        "http://127.0.0.1:5173/*"
+      ],
+      "js": [
+        "app-bridge.js"
+      ],
       "run_at": "document_idle"
     }
   ]

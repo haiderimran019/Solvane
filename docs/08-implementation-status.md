@@ -5,8 +5,8 @@
 - Existing private pilot: <https://solvane.rareyew64.chatgpt.site>
 - GitHub source: <https://github.com/haiderimran019/Solvane>
 - Sites project: `appgprj_6ace76bef1208191b660ee30650b9ae6`
-- Previously published version: 3
-- Current workspace revision: Browser Bridge + Continuity Capsule redesign; deployment status must be updated only after a successful publish.
+- Previous hosted version: 3; the checkpoint/reliability revision was successfully deployed on 14 October 2026 (Site source commit dc960bd723650acfb68bf4781ee9cd2df0351270).
+- Current revision includes the reviewed checkpoint flow, shared extension validation, folder-map intake, and reliability controls; the existing owner-only audience is preserved.
 
 ## Implemented in this source revision
 
@@ -38,6 +38,29 @@
 - Folder-specific provider order and guarded automatic fallback.
 - Persistent API conversations, idempotent turn replay, Perplexity citations, and post-turn capsule reduction.
 - Developer relay console in the dashboard.
+
+### Phase 1 paste-based Checkpoint
+
+- In-project Save checkpoint screen with local `SOLVANE_UPDATE v1` validation and Gemini extraction for ordinary chat pastes.
+- Redaction, strict server-side patch validation, token-budget compression, contradiction flags, additive auto-apply, accept/reject review, pinned-field protection, idempotent source hashes, new-version undo, and version preview/restore.
+- Existing provider-order handoff is reused after save; the handoff wrapper asks the next model to output a SOLVANE_UPDATE block.
+- Full Phase 1 notes and manual checklist: [12-checkpoint-phase1.md](12-checkpoint-phase1.md). Automated report: [TEST_REPORT.md](../TEST_REPORT.md).
+
+### Phase 2 browser chip
+
+- The Manifest V3 extension now ships a collapsed Shadow DOM Save chip with `Alt+S`, freshness state, bounded visible capture, local secret redaction, explicit URL-to-project binding, and a side drawer review.
+- It reuses `/api/checkpoint`, the shared v1 schema, accept/reject merge rules, versioned snapshots, and provider handoff. Valid update blocks skip Gemini; ordinary text uses the server-side Gemini key or encrypted BYOK.
+- The extension adds ten-second Undo through `/api/snapshots`, explicit Save & continue provider selection, and the existing target-site insertion plus clipboard fallback.
+- Provider selectors and four HTML fixtures are isolated in `apps/extension/provider-config.js`; source and package instructions are in [13-browser-chip-phase2.md](13-browser-chip-phase2.md).
+
+### Phase 3 automation and reliability
+
+- Opt-in update-block detection watches only the latest stable assistant message, validates the shared v1 shape, waits through streaming, and deduplicates by content hash. With the setting off, the content script does not read assistant messages.
+- Best-effort provider limit banners, safe diagnostic copy, one-shot long-session reminders, redacted offline retry queue, and plain-language failure states are included in the extension.
+- API Automation treats quota/rate-limit responses as retryable, records provider failovers in the Activity log, and keeps the approved capsule version in the event record.
+- Settings now include auto-detect, reminders, enabled sites, default handoff, token budget, always-show Trust Preview, onboarding checklist, project-instruction copy, and delete-all account data.
+- Authenticated privacy-safe metrics are allowlisted and contain no prompt or capsule content. A founder-only aggregate endpoint exists behind `FOUNDER_METRICS_USER_ID`.
+- Full Phase 3 workflow, limits, and manual checklist: [14-phase3-automation.md](14-phase3-automation.md).
 
 ## Runtime flow
 
@@ -79,10 +102,12 @@ Must still be completed before calling this revision production-ready:
 
 - Real extension insertion checks on the current DOM of all four provider websites.
 - Live API response and forced fallback checks using valid provider credentials and quota.
+- Live update-block and usage-limit behavior on current provider pages; fixture/contract coverage is green but cannot replace a signed-in browser session.
 - Authenticated production deployment of this revision.
 - Cross-device test using one account and account-isolation test using a second admitted user.
 - Google and GitHub login require real OAuth applications, production callback URLs, secret configuration, and end-to-end provider testing. ChatGPT remains the only active sign-in method in this source revision.
 - Privacy policy, data-retention/deletion policy, processor inventory, and jurisdiction-specific legal review before a public pilot.
+- Public privacy/support URLs, IP/WAF throttling, and real Google/GitHub OAuth configuration remain launch work rather than claims of completion.
 
 Provider website markup and model availability change independently of Solvane. A passing build cannot prove live extension insertion, provider quota, model access, or second-account access.
 

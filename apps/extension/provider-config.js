@@ -1,0 +1,52 @@
+// Provider DOM contracts are intentionally isolated and versioned. These are
+// best-effort selectors for visible content only; they never read cookies or
+// hidden model state. When a provider changes markup, update this file only.
+window.SOLVANE_PROVIDER_CONFIG = {
+  version: "2026-10-14.1",
+  providers: {
+    openai: {
+      id: "openai",
+      streaming: ["[data-testid='stop-button']", "button[aria-label='Stop generating']"],
+      hostname: "chatgpt.com",
+      name: "ChatGPT",
+      url: "https://chatgpt.com/",
+      assistant: ["[data-message-author-role='assistant']", "[data-testid*='conversation-turn'] [data-message-author-role='assistant']"],
+      messages: ["[data-message-author-role]", "[data-testid*='conversation-turn']"],
+      composer: ["#prompt-textarea", "textarea", "[contenteditable='true']"],
+      limit: [/\bmessage limit\b/i, /\blimit reached\b/i, /\btry again later\b/i],
+    },
+    claude: {
+      id: "claude",
+      streaming: ["[data-is-streaming='true']", "button[aria-label='Stop response']"],
+      hostname: "claude.ai",
+      name: "Claude",
+      url: "https://claude.ai/new",
+      assistant: ["[data-testid='assistant-message']", "[data-is-streaming='false']"],
+      messages: ["[data-testid='user-message']", "[data-testid='assistant-message']"],
+      composer: ["div[contenteditable='true']", "textarea"],
+      limit: [/\busage limit\b/i, /\bcapacity constraints\b/i, /\btry again later\b/i],
+    },
+    gemini: {
+      id: "gemini",
+      streaming: ["button[aria-label='Stop response']", ".stop-button"],
+      hostname: "gemini.google.com",
+      name: "Gemini",
+      url: "https://gemini.google.com/app",
+      assistant: ["model-response", "[data-message-author-role='model']"],
+      messages: ["user-query", "model-response"],
+      composer: [".ql-editor", "[contenteditable='true']", "textarea"],
+      limit: [/\busage limit\b/i, /\brate limit\b/i, /\btry again later\b/i, /\bhigh demand\b/i],
+    },
+    perplexity: {
+      id: "perplexity",
+      streaming: ["button[aria-label='Stop generating']", "[data-state='streaming']"],
+      hostname: "www.perplexity.ai",
+      name: "Perplexity",
+      url: "https://www.perplexity.ai/",
+      assistant: ["main [class*='prose']", "main [data-message-author-role='assistant']"],
+      messages: ["main [class*='prose']", "main [data-message-author-role]"],
+      composer: ["textarea", "[contenteditable='true']"],
+      limit: [/\busage limit\b/i, /\brate limit\b/i, /\btry again later\b/i],
+    },
+  },
+};

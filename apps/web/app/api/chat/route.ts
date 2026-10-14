@@ -4,6 +4,7 @@ import { events, folders, messages, snapshots } from "../../../db/schema";
 import { callProvider, ProviderCallError } from "../../../lib/providers";
 import { isProviderId, parseProviderOrder, type ProviderId } from "../../../lib/product";
 import { apiUser, resolveProviderCredential, unauthorized } from "../../../lib/server";
+import {reserveCheckpoint} from "../../../lib/checkpoint-limits";
 
 export async function POST(request: Request) {
   const user = await apiUser();
@@ -13,6 +14,7 @@ export async function POST(request: Request) {
     content?: string;
     turnId?: string;
     provider?: unknown;
+    approvedSnapshotVersion?: number;
   };
   const folderId = payload.folderId?.trim();
   const content = payload.content?.trim();
@@ -74,11 +76,14 @@ export async function POST(request: Request) {
   recent.reverse();
   recent.push({ role: "user", content });
   const [snapshot] = await db
-    .select({ state: snapshots.state, version: snapshots.version })
+    .select({ state: snapshots.state, version: snapshots.version, createdAt:snapshots.createdAt })
     .from(snapshots)
     .where(and(eq(snapshots.folderId, folderId), eq(snapshots.userId, user.userId)))
     .orderBy(desc(snapshots.version))
     .limit(1);
+
+  const latestAssistant = await db.select({createdAt:messages.createdAt}).from(messages).where(and(eq(messages.folderId,folderId),eq(messages.userId,user.userId),eq(messages.role,"assistant"))).orderBy(desc(messages.createdAt)).limit(1);
+  if (latestAssistant[0] && (!snapshot || latestAssistant[0].createdAt > snapshot.createdAt) && payload.approvedSnapshotVersion !== (snapshot?.version ?? 0)) return Response.json({error:"Your capsule is older than the latest API work. Review it or approve using this saved version once.",approvalRequired:true,snapshotVersion:snapshot?.version ?? 0},{status:409});
 
   const system = [
     "You are continuing a project through Solvane, a cross-model relay.",
@@ -95,6 +100,7 @@ export async function POST(request: Request) {
     : baseOrder;
   const candidates = folder.autoFallback ? order : order.slice(0, 1);
   const attempts: Array<{ provider: ProviderId; reason: string }> = [];
+  const failovers: Array<{ from: ProviderId; to: ProviderId; reason: string; snapshotVersion: number }> = [];
 
   for (const provider of candidates) {
     const credential = await resolveProviderCredential(user.userId, provider);
@@ -103,6 +109,7 @@ export async function POST(request: Request) {
       continue;
     }
     try {
+      if(provider === "gemini" && credential.source === "platform") await reserveCheckpoint(user.userId,folderId,system.length+recent.reduce((sum,item)=>sum+item.content.length,0),true,request);
       const result = await callProvider({
         provider,
         apiKey: credential.apiKey,
@@ -143,6 +150,7 @@ export async function POST(request: Request) {
         message: { ...assistant, citations: result.citations },
         provider,
         attempts,
+        failovers,
         snapshotRefreshRequired: true,
       });
     } catch (error) {
@@ -150,7 +158,7 @@ export async function POST(request: Request) {
         error instanceof ProviderCallError
           ? error
           : new ProviderCallError("Provider request failed.", provider, 500, true);
-      attempts.push({ provider, reason: failure.status === 429 ? "rate_limited" : failure.message });
+      attempts.push({ provider, reason: failure.status === 402 || failure.status === 429 ? "quota_or_rate_limited" : failure.message });
       await db.insert(events).values({
         id: crypto.randomUUID(),
         folderId,
@@ -159,6 +167,20 @@ export async function POST(request: Request) {
         data: JSON.stringify({ provider, status: failure.status, retryable: failure.retryable }),
         createdAt: new Date().toISOString(),
       });
+      let nextProvider:ProviderId|undefined;
+      for(const candidate of candidates.slice(candidates.indexOf(provider)+1)) {if(await resolveProviderCredential(user.userId,candidate)){nextProvider=candidate;break;}}
+      if (nextProvider && failure.retryable) {
+        const failover = { from: provider, to: nextProvider, reason: failure.status === 402 || failure.status === 429 ? "quota_or_rate_limited" : "provider_unavailable", snapshotVersion: snapshot?.version ?? 0 };
+        failovers.push(failover);
+        await db.insert(events).values({
+          id: crypto.randomUUID(),
+          folderId,
+          userId: user.userId,
+          type: "provider.failover",
+          data: JSON.stringify(failover),
+          createdAt: new Date().toISOString(),
+        });
+      }
       if (!failure.retryable) break;
     }
   }
@@ -169,6 +191,7 @@ export async function POST(request: Request) {
         ? "Connect at least one provider before sending a message."
         : "No configured provider completed this turn.",
       attempts,
+      failovers,
     },
     { status: 424 },
   );

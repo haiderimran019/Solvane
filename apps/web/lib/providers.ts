@@ -59,14 +59,15 @@ async function requestJson<T>(
   provider: ProviderId,
   url: string,
   init: RequestInit,
+  timeoutMs = 45_000,
 ): Promise<{ data: T; response: Response }> {
   const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), 45_000);
+  const timeout = setTimeout(() => controller.abort(), timeoutMs);
   try {
     const response = await fetch(url, { ...init, signal: controller.signal });
     const data = (await response.json().catch(() => ({}))) as T;
     if (!response.ok) {
-      const retryable = response.status === 429 || response.status >= 500;
+      const retryable = response.status === 402 || response.status === 429 || response.status >= 500;
       throw new ProviderCallError(
         retryable
           ? `${provider} is temporarily unavailable.`
@@ -99,8 +100,10 @@ export async function callProvider(args: {
   system: string;
   messages: CanonicalMessage[];
   maxTokens?: number;
+  timeoutMs?: number;
+  responseSchema?: Record<string, unknown>;
 }): Promise<ProviderResult> {
-  const { provider, apiKey, model, system, messages } = args;
+  const { provider, apiKey, model, system, messages, timeoutMs } = args;
   const maxTokens = args.maxTokens ?? 1200;
 
   if (provider === "claude") {
@@ -116,6 +119,7 @@ export async function callProvider(args: {
         },
         body: JSON.stringify({ model, system, messages, max_tokens: maxTokens }),
       },
+      timeoutMs,
     );
     const text = (data.content ?? [])
       .filter((block) => block.type === "text")
@@ -142,9 +146,10 @@ export async function callProvider(args: {
         body: JSON.stringify({
           systemInstruction: { parts: [{ text: system }] },
           contents,
-          generationConfig: { maxOutputTokens: maxTokens },
+          generationConfig: { maxOutputTokens: maxTokens, ...(args.responseSchema ? { responseMimeType: "application/json", responseJsonSchema: args.responseSchema, temperature: 0, thinkingConfig: { thinkingBudget: 0 } } : {}) },
         }),
       },
+      timeoutMs,
     );
     const text = (data.candidates?.[0]?.content?.parts ?? [])
       .map((part) => part.text ?? "")
@@ -172,6 +177,7 @@ export async function callProvider(args: {
         },
         body: JSON.stringify({ model, input, max_output_tokens: maxTokens }),
       },
+      timeoutMs,
     );
     const text =
       data.output_text ??
@@ -202,6 +208,7 @@ export async function callProvider(args: {
         max_tokens: maxTokens,
       }),
     },
+    timeoutMs,
   );
   const citations = (data.citations ?? []).map((citation: string) => ({
     url: citation,

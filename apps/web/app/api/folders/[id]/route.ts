@@ -56,6 +56,8 @@ export async function GET(_: Request, context: RouteContext) {
           version: snapshot.version,
           state: normalizeSnapshot(JSON.parse(snapshot.state) as Partial<RelaySnapshot>),
           createdAt: snapshot.createdAt,
+          schemaVersion: snapshot.schemaVersion,
+          pinnedFields: (() => { try { return JSON.parse(snapshot.pinnedFields || "[]"); } catch { return []; } })(),
         }
       : { version: 0, state: EMPTY_SNAPSHOT, createdAt: null },
   });

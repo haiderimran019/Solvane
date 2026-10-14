@@ -13,7 +13,20 @@ Use test projects and non-confidential content. Solvane should preserve explicit
 
 Expected result: the workspace loads, the profile opens, the consent choice persists, and only that account's projects are visible.
 
-## 2. Create a project and build a Capsule
+## 2. Save a paste-based checkpoint
+
+1. Inside the project, open **Save checkpoint** from the left rail or phone navigation.
+2. Paste a recent model exchange, or paste a valid `<<<SOLVANE_UPDATE v1 ... SOLVANE_UPDATE>>>` block.
+3. Read the privacy disclosure. Solvane redacts common secrets before Gemini processing; valid blocks are validated locally and skip Gemini.
+4. Click **Save checkpoint**. For ordinary chat text, the free tier uses the configured server-side Gemini key; BYOK can be configured in API mode.
+5. Review Added / Changed / Removed. Additions are selected by default. Accept or reject each edit and removal, then click **Accept & save capsule**.
+6. Confirm `Saved (vN)` and the **Continue in** split control. The main action uses the suggested provider; the arrow lets you choose another ordered provider.
+7. Use **Undo** immediately if needed; undo creates a later version rather than deleting history.
+8. Save the exact same paste again and confirm it reports `Already saved (vN)`.
+
+Expected result: the paste becomes a small, explicit, reviewable capsule update. The user remains in control of all edits and removals.
+
+## 3. Create a project and build a Capsule
 
 1. Select **New project** and give it a recognizable test name.
 2. Select **Edit** on the Continuity Capsule.
@@ -24,7 +37,7 @@ Expected result: the workspace loads, the profile opens, the consent choice pers
 
 Expected result: the project persists after reload, the Capsule version increases, and Trust Preview contains only visible project state.
 
-## 3. Test Browser Bridge handoff
+## 4. Test Browser Bridge handoff
 
 1. Under **Continue in**, choose Claude, Gemini, ChatGPT, or Perplexity.
 2. Confirm a Solvane dialog appears before any external site opens.
@@ -37,18 +50,21 @@ Expected result: the project persists after reload, the Capsule version increase
 
 Expected result: no popup-blocker prompt appears, the correct official site opens, the Capsule is ready to paste, and an audit record is stored.
 
-## 4. Test the optional browser extension
+## 5. Test the browser chip extension (Phase 2)
 
 1. Download the extension from **Modes & settings**.
 2. Unzip it, open the browser's extension management page, enable developer mode, and load the unpacked `apps/extension` folder. Only install it after reviewing its requested permissions.
-3. Reopen one of the four supported provider websites.
-4. Use the floating Solvane control to insert the pending Capsule.
-5. Confirm the inserted content matches Trust Preview and that the extension does not send the message.
-6. Repeat once per provider because provider page markup changes independently.
+3. Sign in to Solvane in the same browser profile, then reopen one of the four supported provider websites.
+4. Confirm the collapsed **Save** chip appears. Press `Alt+S` and confirm the side drawer opens; it must not read the page before this click.
+5. Confirm the drawer contains only the last visible messages (or a manual paste fallback), redacts a fake `sk-...` value before saving, and asks you to explicitly link the URL to a project.
+6. Click **Save checkpoint**, review Added / Changed / Removed, accept one addition, and confirm a new version. If a valid update block is pasted, confirm the notice says Gemini was not called.
+7. Click **Undo for 10 seconds**, confirm Undo creates another version, then repeat Save and use **Save & continue → ChatGPT** (or another target).
+8. On the target provider, confirm **Insert capsule** is explicit, the composer receives the capsule, the clipboard fallback works if the composer selector is unavailable, and the extension never sends the message.
+9. Repeat once per provider because provider page markup changes independently. If the Solvane session is unavailable, verify the drawer gives a re-login/manual-paste message rather than losing the capture.
 
 Expected result: insertion works when the current provider composer is recognized. If it does not, clipboard paste remains the supported fallback.
 
-## 5. Test provider order and zoom
+## 6. Test provider order and zoom
 
 1. In **Preferred route**, move providers earlier and later.
 2. Reload and confirm the order persists.
@@ -59,7 +75,7 @@ Expected result: insertion works when the current provider composer is recognize
 
 Expected result: no arrows overlap, no provider cards pile up, and the page has no unintended horizontal overflow.
 
-## 6. Test profile, privacy, and owned data
+## 7. Test profile, privacy, and owned data
 
 1. Open the profile and data center.
 2. Confirm project, Capsule, handoff, message, and API-connection totals are visible.
@@ -70,7 +86,7 @@ Expected result: no arrows overlap, no provider cards pile up, and the page has 
 
 Expected result: profile controls work, export completes, privacy choice persists, and sign-out removes workspace access.
 
-## 7. Test cross-device and second-account boundaries
+## 8. Test cross-device and second-account boundaries
 
 1. Sign in to Solvane on a second browser or device with the same account.
 2. Open the project created in step 2 and confirm the latest Capsule and provider order are present.
@@ -103,6 +119,7 @@ Expected result: Browser Bridge works without provider keys; API mode works only
 - [ ] Same-account cross-device sync works.
 - [ ] Second-account isolation works.
 - [ ] Extension insertion is checked on all four current provider pages, with paste fallback confirmed.
+- [ ] Browser chip capture, explicit project binding, diff review, ten-second Undo, Alt+S, and freshness label are checked on all four provider pages.
 - [ ] API response and fallback are checked only when valid test keys are available.
 
 Record the browser, operating system, viewport or zoom level, account type, provider, exact steps, expected result, actual result, and a screenshot for every failure.

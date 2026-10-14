@@ -1,4 +1,4 @@
-import { and, desc, eq } from "drizzle-orm";
+import { and, desc, eq, inArray } from "drizzle-orm";
 import { getDb } from "../../../db";
 import { events, folders } from "../../../db/schema";
 import { isProviderId } from "../../../lib/product";
@@ -23,16 +23,21 @@ export async function GET(request: Request) {
       and(
         eq(events.folderId, folderId),
         eq(events.userId, user.userId),
-        eq(events.type, "handoff.launched"),
+        inArray(events.type, ["handoff.launched", "provider.failover"]),
       ),
     )
     .orderBy(desc(events.createdAt))
     .limit(12);
 
   return Response.json({
-    handoffs: rows.map((row) => ({
+    handoffs: rows.filter((row) => row.type === "handoff.launched").map((row) => ({
       id: row.id,
       ...(JSON.parse(row.data) as HandoffData),
+      createdAt: row.createdAt,
+    })),
+    failovers: rows.filter((row) => row.type === "provider.failover").map((row) => ({
+      id: row.id,
+      ...(JSON.parse(row.data) as { from: string; to: string; reason: string; snapshotVersion: number }),
       createdAt: row.createdAt,
     })),
   });

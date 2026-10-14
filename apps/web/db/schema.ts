@@ -59,12 +59,16 @@ export const snapshots = sqliteTable(
       .references(() => folders.id, { onDelete: "cascade" }),
     userId: text("user_id").notNull(),
     version: integer("version").notNull(),
+    schemaVersion: integer("schema_version").notNull().default(1),
     state: text("state").notNull(),
+    pinnedFields: text("pinned_fields").notNull().default("[]"),
+    sourceHash: text("source_hash"),
     sourceMessageCount: integer("source_message_count").notNull().default(0),
     createdAt: text("created_at").notNull().default(sql`CURRENT_TIMESTAMP`),
   },
   (table) => [
     uniqueIndex("snapshots_folder_version_uq").on(table.folderId, table.version),
+    uniqueIndex("snapshots_folder_source_hash_uq").on(table.folderId, table.sourceHash),
   ],
 );
 
