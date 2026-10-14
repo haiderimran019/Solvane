@@ -269,14 +269,20 @@ button:disabled { cursor: not-allowed; opacity: .45; }
 .diff-group.changed .diff-group-head { color: #73561a; background: #fff5da; }
 .diff-group.removed .diff-group-head { color: #813f38; background: #fff0ec; }
 .diff-group-head small { color: #858c80; font-size: 6px; }
-.diff-item { padding: 10px; display: grid; grid-template-columns: minmax(0,1fr) auto; align-items: center; gap: 10px; border-top: 1px solid #edf0e9; }
+.diff-item { padding: 11px; display: grid; grid-template-columns: minmax(0,1fr) auto; align-items: center; gap: 12px; border-top: 1px solid #edf0e9; transition: background-color .16s ease, box-shadow .16s ease; }
 .diff-item:first-of-type { border-top: 0; }
-.diff-item > div:first-child { min-width: 0; }
+.diff-item.accepted { background: #fbfff2; box-shadow: inset 3px 0 #b9ef27; }
+.diff-item.rejected { background: #fffafa; box-shadow: inset 3px 0 #e5a49a; }
+.diff-copy { min-width: 0; }
 .diff-field { display: inline-block; color: #7f8878; font-size: 6px; font-weight: 800; letter-spacing: .1em; text-transform: uppercase; }
 .diff-item p { margin: 4px 0 0; color: #263021; font-size: 8px; line-height: 1.45; }
 .diff-item p em { display: block; margin-top: 4px; color: #91521e; font-size: 6px; font-style: normal; }
-.diff-item small { margin-top: 4px; display: flex; align-items: center; gap: 4px; color: #8a9185; font-size: 6px; line-height: 1.4; }
-.diff-controls { display: flex; gap: 5px; }
+.diff-item small { margin-top: 5px; display: flex; align-items: center; gap: 5px; color: #777f73; font-size: 7px; line-height: 1.45; }
+.diff-item small s { color: #9a7772; }
+.diff-item small b { color: #2d3828; font-weight: 750; }
+.diff-copy blockquote { margin: 8px 0 0; padding: 7px 9px; border: 0; border-left: 3px solid #c8e868; border-radius: 0 7px 7px 0; color: #66705f; background: #f4f7ee; font-size: 7px; line-height: 1.5; overflow-wrap: anywhere; }
+.diff-copy blockquote span { display: block; margin-bottom: 2px; color: #7a8572; font-size: 6px; font-weight: 800; letter-spacing: .08em; text-transform: uppercase; }
+.diff-controls { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 5px; }
 .diff-controls button { min-height: 27px; padding: 0 7px; display: inline-flex; align-items: center; gap: 4px; border: 1px solid #d7ddd0; border-radius: 7px; color: #7a8175; background: #fafbf8; cursor: pointer; font-size: 6px; font-weight: 750; }
 .diff-controls .selected.diff-accept { color: #1d3004; border-color: #a9d63a; background: #dfff75; }
 .diff-controls .selected.diff-reject { color: #713d37; border-color: #e2b4ab; background: #fff0ed; }
@@ -623,5 +629,13 @@ button:disabled { cursor: not-allowed; opacity: .45; }
 .project-intake pre,.handoff-payload pre { white-space:pre-wrap; overflow-wrap:anywhere; font-size:12px; max-height:240px; overflow:auto; padding:12px; background:#eff2e8; border-radius:10px; color:#171a15; }
 .handoff-payload { margin:16px 24px; }
 .handoff-launch { max-height:calc(100dvh - 24px); overflow-y:auto; }
-.diff-item blockquote { font-size:12px; border-left:3px solid #c8e868; padding-left:10px; margin:8px 0; }
-@media(max-width:600px) { .automation-inline-fields { grid-template-columns:1fr; }.automation-panel{padding:16px}.handoff-payload{margin:12px} }
+@media(max-width:600px) {
+  .automation-inline-fields { grid-template-columns:1fr; }
+  .automation-panel{padding:16px}
+  .handoff-payload{margin:12px}
+  .diff-item { grid-template-columns: 1fr; align-items: stretch; }
+  .diff-controls { justify-content: flex-start; }
+  .diff-controls button { min-height: 34px; font-size: 7px; }
+  .checkpoint-commit { align-items: stretch; flex-direction: column; }
+  .checkpoint-commit .primary-button { width: 100%; }
+}

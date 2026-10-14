@@ -76,6 +76,31 @@ describe("checkpoint schema and merge rules", () => {
     assert.ok(!accepted.openQuestions.includes("Choose a provider"));
   });
 
+  it("emits one human-readable next-step change and applies it only when accepted", () => {
+    const patch: CheckpointPatch = {
+      ...cleanPatch,
+      next_step: "Write the streak logic.",
+      changes: [{ field: "next_step", from: base.nextAction, to: "Write the streak logic.", source_excerpt: "Next, write the streak logic." }],
+    };
+    const changed = diffCheckpoint(base, patch).filter((item) => item.field === "nextAction");
+    assert.equal(changed.length, 1);
+    assert.equal(changed[0].text, "Next step");
+    assert.equal(changed[0].sourceExcerpt, "Next, write the streak logic.");
+    assert.equal(applyCheckpointPatch(base, patch, new Set()).nextAction, base.nextAction);
+    assert.equal(applyCheckpointPatch(base, patch, new Set([changed[0].key])).nextAction, "Write the streak logic.");
+  });
+
+  it("dedupes near-identical additions across decision and constraint fields", () => {
+    const patch: CheckpointPatch = {
+      ...cleanPatch,
+      decisions_add: ["Use SQLite for the pilot."],
+      constraints_add: ["SQLite must be used for the pilot."],
+    };
+    const matching = diffCheckpoint(base, patch).filter((item) => /sqlite/i.test(item.text));
+    assert.equal(matching.length, 1);
+    assert.equal(matching[0].field, "constraints");
+  });
+
   it("is idempotent at the merge boundary", () => {
     const patch = validateCheckpointPatch(cleanPatch);
     assert.equal(patch.ok, true);
