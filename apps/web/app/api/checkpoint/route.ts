@@ -79,7 +79,7 @@ async function buildGeminiPatch(userId: string, folderId: string, current: Relay
   const budget = Math.max(300, Number(runtimeEnv.CHECKPOINT_TOKEN_BUDGET || DEFAULT_CHECKPOINT_TOKEN_BUDGET));
   await reserveCheckpoint(userId, folderId, text.length + JSON.stringify(current).length, credential.source === "platform", request);
   return extractCheckpoint({ text, current, budget, timeoutMs: Math.max(500, Number(runtimeEnv.CHECKPOINT_TIMEOUT_MS || 8500)), generate: async (args) => {
-    const result = await callProvider({ provider: "gemini", apiKey: credential.apiKey, model: runtimeEnv.CHECKPOINT_GEMINI_MODEL || (credential.source === "platform" ? "gemini-2.5-flash-lite" : credential.model), system: args.system, messages: [{ role: "user", content: args.content }], responseSchema: args.schema, maxTokens: Number(runtimeEnv.CHECKPOINT_MAX_OUTPUT_TOKENS || 2000), timeoutMs: args.timeoutMs });
+    const result = await callProvider({ provider: "gemini", apiKey: credential.apiKey, model: runtimeEnv.CHECKPOINT_GEMINI_MODEL || (credential.source === "platform" ? "gemini-3.5-flash-lite" : credential.model), system: args.system, messages: [{ role: "user", content: args.content }], responseSchema: args.schema, maxTokens: Number(runtimeEnv.CHECKPOINT_MAX_OUTPUT_TOKENS || 2000), timeoutMs: args.timeoutMs });
     return result.text;
   } });
 }

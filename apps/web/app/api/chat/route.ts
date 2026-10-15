@@ -2,9 +2,12 @@ import { and, desc, eq } from "drizzle-orm";
 import { getDb } from "../../../db";
 import { events, folders, messages, snapshots } from "../../../db/schema";
 import { callProvider, ProviderCallError } from "../../../lib/providers";
-import { isProviderId, parseProviderOrder, type ProviderId } from "../../../lib/product";
+import { PROVIDERS, isProviderId, parseProviderOrder, type ProviderId } from "../../../lib/product";
 import { apiUser, resolveProviderCredential, unauthorized } from "../../../lib/server";
-import {reserveCheckpoint} from "../../../lib/checkpoint-limits";
+import { PlatformLimitError, reserveCheckpoint } from "../../../lib/checkpoint-limits";
+
+// Room for adaptive thinking plus a full reply; also the output bound used when reserving platform spend.
+const CHAT_MAX_TOKENS = 8000;
 
 export async function POST(request: Request) {
   const user = await apiUser();
@@ -109,13 +112,16 @@ export async function POST(request: Request) {
       continue;
     }
     try {
-      if(provider === "gemini" && credential.source === "platform") await reserveCheckpoint(user.userId,folderId,system.length+recent.reduce((sum,item)=>sum+item.content.length,0),true,request);
+      // Platform keys are the operator's money, so every provider's call is reserved against the daily caps first.
+      if (credential.source === "platform") await reserveCheckpoint(user.userId, folderId, system.length + recent.reduce((sum, item) => sum + item.content.length, 0), true, request, { provider, maxOutputTokens: CHAT_MAX_TOKENS, calls: 1 });
       const result = await callProvider({
         provider,
         apiKey: credential.apiKey,
         model: credential.model,
         system,
         messages: recent,
+        maxTokens: CHAT_MAX_TOKENS,
+        timeoutMs: 90_000,
       });
       if (!result.text.trim()) throw new ProviderCallError("Empty provider response.", provider, 502, true);
       const completedAt = new Date().toISOString();
@@ -157,7 +163,9 @@ export async function POST(request: Request) {
       const failure =
         error instanceof ProviderCallError
           ? error
-          : new ProviderCallError("Provider request failed.", provider, 500, true);
+          : error instanceof PlatformLimitError
+            ? new ProviderCallError(`${PROVIDERS[provider].name} reached Solvane's daily processing limit.`, provider, 429, false, true)
+            : new ProviderCallError("Provider request failed.", provider, 500, true);
       attempts.push({ provider, reason: failure.status === 402 || failure.status === 429 ? "quota_or_rate_limited" : failure.message });
       await db.insert(events).values({
         id: crypto.randomUUID(),
@@ -169,8 +177,8 @@ export async function POST(request: Request) {
       });
       let nextProvider:ProviderId|undefined;
       for(const candidate of candidates.slice(candidates.indexOf(provider)+1)) {if(await resolveProviderCredential(user.userId,candidate)){nextProvider=candidate;break;}}
-      if (nextProvider && failure.retryable) {
-        const failover = { from: provider, to: nextProvider, reason: failure.status === 402 || failure.status === 429 ? "quota_or_rate_limited" : "provider_unavailable", snapshotVersion: snapshot?.version ?? 0 };
+      if (nextProvider && failure.fallback) {
+        const failover = { from: provider, to: nextProvider, reason: failure.status === 402 || failure.status === 429 ? "quota_or_rate_limited" : failure.retryable ? "provider_unavailable" : "provider_rejected", snapshotVersion: snapshot?.version ?? 0 };
         failovers.push(failover);
         await db.insert(events).values({
           id: crypto.randomUUID(),
@@ -181,15 +189,16 @@ export async function POST(request: Request) {
           createdAt: new Date().toISOString(),
         });
       }
-      if (!failure.retryable) break;
+      if (!failure.fallback) break;
     }
   }
 
+  const reasons = attempts.filter((attempt) => attempt.reason !== "not_connected").map((attempt) => attempt.reason === "quota_or_rate_limited" ? `${PROVIDERS[attempt.provider].name} is rate-limited or out of quota.` : attempt.reason);
   return Response.json(
     {
       error: attempts.every((attempt) => attempt.reason === "not_connected")
         ? "Connect at least one provider before sending a message."
-        : "No configured provider completed this turn.",
+        : `No configured provider completed this turn. ${reasons.join(" ")}`.trim(),
       attempts,
       failovers,
     },

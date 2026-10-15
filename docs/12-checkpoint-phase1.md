@@ -38,7 +38,7 @@ Solvane never reads provider cookies, passwords, hidden reasoning, or browser hi
 
 ```text
 GEMINI_API_KEY=...
-GEMINI_MODEL=gemini-2.5-flash
+GEMINI_MODEL=gemini-3.8-flash
 GEMINI_DAILY_LIMIT=20
 CHECKPOINT_TOKEN_BUDGET=1500
 ```

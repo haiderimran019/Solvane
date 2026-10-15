@@ -1,5 +1,29 @@
 # Solvane pilot test report
 
+## API mode hygiene (Phase 4, #10) — 16 October 2026
+
+- **Current default models (checked against provider docs today):**
+  - Claude `claude-opus-5-5`, replacing the retired `claude-3-5-haiku-latest`.
+  - ChatGPT `gpt-6-luna`, OpenAI's named replacement for `gpt-4o-mini`, which shuts down on 14 January 2027.
+  - Gemini `gemini-3.8-flash`, and `gemini-3.5-flash-lite` for checkpoints. Gemini 2.5 now serves only accounts that already used it.
+  - Perplexity `sonar`, unchanged.
+  - All are still overridable with environment variables and per-key model fields.
+- **Provider request shapes:**
+  - Current Claude models send an explicit medium effort.
+  - Claude models that support it opt into Anthropic's server-side refusal fallback (`fallbacks: "default"`, beta `server-side-fallback-2026-07-01`), and a Claude refusal is detected rather than read as an empty answer.
+  - Gemini extraction sends `thinkingLevel: LOW` to 3.x models and `thinkingBudget: 0` to 2.x.
+  - Perplexity sources are read from `search_results` when `citations` is absent.
+  - Chat turns allow 8,000 output tokens and 90 seconds.
+- **Spending caps on every platform key.** Each call made with a workspace-owned key, for any provider, is reserved against the daily caps first, at that provider's conservative prices. `PLATFORM_DAILY_SPEND_USD` is the overall cap; the old `GEMINI_DAILY_SPEND_USD` still applies when it is unset. Personal (BYOK) keys are not capped. Before, only Gemini platform calls were capped.
+- **Fallback on rejection.**
+  - A rejected key (401/403), an unknown or retired model (404), a rejected request (400), a Claude refusal, or the platform cap now hands the turn to the next connected provider. Before, it stopped the turn.
+  - Error messages name each provider's reason, for example "Claude doesn't recognize the model."
+  - ADR 004 records the revised rule.
+
+Tests: four route tests cover rejection and refusal fallback with readable errors, the Claude request body and headers for current and older models, platform-key reservation and the cap stopping calls, and Gemini thinking control by generation. All four fail against the previous code.
+
+Not verified: live calls with real keys. The request shapes come from the providers' current docs and are exercised against scripted responses only.
+
 ## Honest UI (Phase 3) — 16 October 2026
 
 - **Home follows your providers.** The source is the first provider in the project's order. The target is the default handoff, else the provider continued in last, else ChatGPT, then the rest of the order, never the source. The hero, button, diagram and phone Continue all use them. Existing projects with default settings still show Claude → ChatGPT.
