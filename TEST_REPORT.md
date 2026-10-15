@@ -22,7 +22,7 @@ The next browser-companion slice now uses the same Manrope/teal design, defaults
 
 Verified behavior: the home screen exposes one dominant `Continue in ChatGPT` action and one `Save latest progress` action; Save opens the existing checkpoint/Gemini review flow; Continue opens the existing exact-payload handoff review; Project memory preserves capsule editing; Advanced preserves Browser Bridge, provider order, privacy controls, and API Automation.
 
-Verified later in this report: the unpacked extension on authenticated Claude and ChatGPT pages, a reviewed block save, safe insertion into ChatGPT without sending, GitHub publication, and an owner-private production deployment. Still not claimed: a real Claude usage-limit event, a live ordinary-prose Gemini extraction, or the target model's final response.
+Verified later in this report: the unpacked extension on authenticated Claude and ChatGPT pages, a reviewed block save, safe insertion into ChatGPT without sending, GitHub publication, and a production deployment. The Site was subsequently opened to public visitors while retaining per-user sign-in and data isolation. Still not claimed: a real Claude usage-limit event, a live ordinary-prose Gemini extraction, or the target model's final response.
 
 Date: 15 October 2026. Scope: paste/checkpoint, browser chip, Gemini boundary, review/versioning, handoff, API fallback, and release packaging.
 
@@ -119,7 +119,7 @@ Redaction is pattern-based. It covers common API keys, bearer tokens, .env-style
 
 ## Hosted publication
 
-The supported Sites workflow packaged source commit `c341f07f3358e7514cada64a58ea89f055ac4f79` and deployed saved version `appgprj_6ace76bef1208191b660ee30650b9ae6~appgver_277dd0ede2008191a0e06f5d6786d190` successfully to https://solvane.rareyew64.chatgpt.site on 15 October 2026. The existing owner-only audience was preserved. GitHub `main` was pushed through commit `5501ac8`. Valid update blocks work without a Gemini call; ordinary prose through the live Gemini boundary remains a separate real-world verification gate.
+The supported Sites workflow packaged source commit `c341f07f3358e7514cada64a58ea89f055ac4f79` and deployed saved version `appgprj_6ace76bef1208191b660ee30650b9ae6~appgver_277dd0ede2008191a0e06f5d6786d190` successfully to https://solvane.rareyew64.chatgpt.site on 15 October 2026. Site access was changed from the owner-only pilot to public-link access on 15 October 2026; visitors still authenticate so projects remain isolated per user and work across devices. GitHub `main` contains the release source and documentation. Valid update blocks work without a Gemini call; ordinary prose through the live Gemini boundary remains a separate real-world verification gate.
 
 ## Reproduce
 
