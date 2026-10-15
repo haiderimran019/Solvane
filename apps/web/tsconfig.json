@@ -31,8 +31,7 @@
     "types": [
       "node",
       "@cloudflare/workers-types"
-    ],
-    "noImplicitAny": false
+    ]
   },
   "include": [
     "next-env.d.ts",
