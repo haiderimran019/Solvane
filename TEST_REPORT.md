@@ -21,6 +21,12 @@ Verified in the runtime fixture against the local API:
 - A lost extension connection showed the reload message and kept the capture.
 - The service worker forwards to production in both builds, reaches the dev origin only from the unpacked source, and refuses other origins.
 
+- **Fewer clicks (0.4.5):**
+  - An unlinked chat preselects the last-used project with a visible note.
+  - Review update links the chat to the selected project, so there is no separate Link click, and the review shows "Saving to <project>".
+  - With no previous project nothing is preselected, and saving asks for a choice.
+  - The dashboard Home shows a 3-step setup card until every step is done or it is hidden: add the project instruction to Claude (copying it marks the step done), install the extension, save once. The Advanced checklist starts with the instruction step.
+
 Live Claude, ChatGPT and Gemini composers still need a manual insertion check.
 
 ## Save-logic fixes — 15 October 2026

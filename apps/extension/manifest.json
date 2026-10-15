@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "Solvane Browser Bridge",
-  "version": "0.4.4",
+  "version": "0.4.5",
   "description": "Save reviewed project progress in Claude and continue in ChatGPT without re-explaining. Reads on click; never presses Send.",
   "permissions": [
     "storage",

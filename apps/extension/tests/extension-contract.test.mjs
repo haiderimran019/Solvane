@@ -45,6 +45,10 @@ assert.doesNotMatch(content, /setStorage\(chrome\.storage\.sync, \{ solvaneBindi
 assert.match(content, /QUEUE_TTL_MS/);
 assert.doesNotMatch(content, /\bfetch\(/);
 assert.doesNotMatch(background, /127\.0\.0\.1/);
+// New chats start on the last-used project; Review update confirms the visible choice.
+assert.match(content, /solvaneLastProject/);
+assert.match(content, /if \(selected !== state\.binding\) await linkProject\(\)/);
+assert.match(content, /Saving to <strong>/);
 
 // The release zip is built from the source with production origins only.
 const archive = join(extension, "..", "web", "public", "solvane-extension.zip");

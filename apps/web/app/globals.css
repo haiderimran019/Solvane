@@ -897,3 +897,18 @@ body {
 .next-step-block .pin-toggle:hover, .next-step-block .pin-toggle:focus-visible { background: #2a2f27; }
 .next-step-block .pin-toggle.pinned { color: var(--signal); }
 @media (hover: none) { .pin-toggle { opacity: .75; } }
+
+/* First-run setup: three steps, shown until done or hidden. */
+.setup-card { margin-top: 18px; padding: 20px 22px; border: 1px solid #dfe5e1; border-radius: 24px; background: #fff; box-shadow: 0 14px 38px rgba(35,54,47,.055); }
+.setup-card ol { margin: 12px 0 0; padding: 0; display: grid; gap: 8px; list-style: none; }
+.setup-card li { padding: 12px; display: grid; grid-template-columns: 28px 1fr auto; align-items: center; gap: 12px; border: 1px solid #e2e7e3; border-radius: 15px; background: #fbfcfb; }
+.setup-card li > b { width: 28px; height: 28px; display: grid; place-items: center; border-radius: 9px; color: #15896e; background: #e8f7f2; font-size: 11px; }
+.setup-card li strong, .setup-card li small { display: block; }
+.setup-card li strong { color: #1d2a25; font-size: 11px; }
+.setup-card li small { margin-top: 3px; color: #7f8b85; font-size: 9px; line-height: 1.5; }
+.setup-card li .secondary-action { white-space: nowrap; }
+.setup-card li em { color: #16886e; font-size: 9px; font-style: normal; font-weight: 800; }
+.setup-card li.done { background: #f3f8f6; }
+.setup-card li.done > b { color: #fff; background: #1fb58f; }
+.setup-card li.done strong { color: #5b6a64; }
+@media (max-width: 600px) { .setup-card li { grid-template-columns: 28px 1fr; } .setup-card li > .secondary-action, .setup-card li > em { grid-column: 2; justify-self: start; } }
