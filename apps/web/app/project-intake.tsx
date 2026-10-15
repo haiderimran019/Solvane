@@ -1,0 +1,11 @@
+"use client";
+import { useRef, useState } from "react";
+import { buildProjectMap } from "../lib/project-map";
+
+export default function ProjectIntake({onUse}:{onUse:(text:string)=>void}) {
+  const input = useRef<HTMLInputElement>(null);
+  const [metadataOnly,setMetadataOnly] = useState(true);
+  const [map,setMap] = useState<ReturnType<typeof buildProjectMap>|null>(null);
+  const [busy,setBusy] = useState(false);
+  return <details className="project-intake"><summary>Adopt an existing project folder</summary><p>Choose a folder explicitly. Review the compact file map before adding it to your paste. Secret files and build output are excluded on this device.</p><label><input type="checkbox" checked={metadataOnly} onChange={(event)=>{setMetadataOnly(event.target.checked);setMap(null);}}/> Metadata only: file tree and README/manifests</label><input ref={input} type="file" multiple {...{webkitdirectory:""}} hidden onChange={async(event)=>{setBusy(true);try {const files=Array.from(event.target.files||[]).slice(0,1500);const records=[];for(const file of files){const path=file.webkitRelativePath||file.name;const safe=!/(^|\/)(\.git|node_modules|dist|build|\.next|\.env[^/]*|\.venv|vendor)(\/|$)/i.test(path)&&file.size<=100000&&/\.(md|txt|json|toml|yaml|yml|ts|tsx|js|jsx|py|rs|go|html|css)$/i.test(path);const manifest=/(readme[^/]*|package.json|requirements.txt|pyproject.toml|cargo.toml|go.mod)$/i.test(path);records.push({path,size:file.size,text:safe&&(!metadataOnly||manifest)?await file.text():undefined});}setMap(buildProjectMap(records,metadataOnly));} finally{setBusy(false);}}}/><button className="secondary-action" disabled={busy} onClick={()=>input.current?.click()}>{busy?"Building a compact map…":"Choose project folder"}</button>{map&&<div><p>{map.included.length} included · {map.skipped.length} excluded · stays on this device until you click Save checkpoint</p><details><summary>Review included / excluded files</summary><pre>{map.included.map((path)=>`Included: ${path}`).concat(map.skipped.map((path)=>`Excluded: ${path}`)).join("\n")}</pre></details><pre>{map.text.slice(0,1800)}{map.text.length>1800?"\n…bounded excerpts continue":""}</pre><button className="secondary-action" onClick={()=>{onUse(map.text);setMap(null);}}>Add reviewed map to checkpoint</button></div>}</details>;
+}
