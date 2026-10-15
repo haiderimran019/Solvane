@@ -8,3 +8,9 @@ tmp/
 .env
 .env.*
 node_modules/
+
+.openai/
+build/
+
+**/build/
+**/.openai/
