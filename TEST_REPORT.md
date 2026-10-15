@@ -1,5 +1,28 @@
 # Solvane pilot test report
 
+## Extension reliability (Phase 2) — 15 October 2026
+
+- **One capsule builder (0.4.3).** The dashboard, the extension and `handoff.md` all use `buildCapsulePrompt` from the shared core. Extension handoffs are now readable sections with the project name and real line breaks (previously a JSON dump with literal `\n`), and they apply the dashboard's privacy choices, which now sync to the extension.
+- **0.4.4:**
+  - Alt+S uses the physical key, so Option+S works on macOS (it types `ß`).
+  - Insert capsule simulates a paste over the composer, so ProseMirror keeps line breaks as paragraphs and the draft is replaced. The fallback is `execCommand("insertText")`.
+  - Chat links moved from synced storage (8 KB per item, about 80 links) to local storage. Old links migrate on first read.
+  - Queued captures expire after 7 days, and the chip no longer pulses every 30 seconds.
+  - The direct page-origin fetch fallback and the server CORS allowance for provider sites are removed. An extension update now shows "Reload this tab".
+  - The release ZIP is rebuilt from scratch without the `127.0.0.1:5173` dev origin, and the service worker reads its allowed origins from the manifest.
+
+Verified in the runtime fixture against the local API:
+- An Option+S key event opened the drawer.
+- Legacy synced links merged into local storage and left synced storage.
+- An 8-day-old capture was removed; a legacy capture was given a timestamp.
+- The chip stayed still.
+- A real ProseMirror editor received the capsule as six paragraphs, with the draft replaced.
+- A textarea composer received it with newlines and one input event.
+- A lost extension connection showed the reload message and kept the capture.
+- The service worker forwards to production in both builds, reaches the dev origin only from the unpacked source, and refuses other origins.
+
+Live Claude, ChatGPT and Gemini composers still need a manual insertion check.
+
 ## Save-logic fixes — 15 October 2026
 
 Three defects in save → review → continue were reproduced against a local build and fixed:

@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { execFileSync } from "node:child_process";
 import { readFile } from "node:fs/promises";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -37,6 +38,20 @@ assert.match(content, /Save project progress/);
 assert.match(content, /SolvaneCore\.buildCapsulePrompt/);
 assert.match(core, /function buildCapsulePrompt/);
 assert.doesNotMatch(content, /JSON\.stringify\(value, null, 2\)/);
+// Mac shortcut, link storage, capture expiry, and no direct page-origin requests to Solvane.
+assert.match(content, /event\.code === "KeyS"/);
+assert.match(content, /setStorage\(chrome\.storage\.local, \{ solvaneBindings/);
+assert.doesNotMatch(content, /setStorage\(chrome\.storage\.sync, \{ solvaneBindings/);
+assert.match(content, /QUEUE_TTL_MS/);
+assert.doesNotMatch(content, /\bfetch\(/);
+assert.doesNotMatch(background, /127\.0\.0\.1/);
+
+// The release zip is built from the source with production origins only.
+const archive = join(extension, "..", "web", "public", "solvane-extension.zip");
+const released = JSON.parse(execFileSync("unzip", ["-p", archive, "manifest.json"], { encoding: "utf8" }));
+assert.equal(released.version, manifest.version, "run npm run build:extension after changing the extension");
+assert.ok(!JSON.stringify(released).includes("127.0.0.1"), "the release manifest must not include the local dev origin");
+assert.deepEqual(released.content_scripts[1].matches, ["https://solvane.rareyew64.chatgpt.site/*"]);
 assert.match(config, /version:/);
 for (const path of ['openai: {', 'claude: {', 'gemini: {', 'perplexity: {']) {
   const section = config.slice(config.indexOf(path), config.indexOf('},', config.indexOf(path)) + 2);

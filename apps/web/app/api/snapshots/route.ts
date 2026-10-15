@@ -12,7 +12,6 @@ import {extractCheckpoint} from "../../../lib/checkpoint-engine";
 import {reserveCheckpoint} from "../../../lib/checkpoint-limits";
 import {redactSecrets,diffCheckpoint,applyCheckpointPatch,normalizePins,pinsForManualEdit} from "../../../lib/checkpoint";
 import {env} from "cloudflare:workers";
-import { extensionOptions, withExtensionCors } from "../../../lib/extension-cors";
 
 type SnapshotPayload = {
   folderId?: string;
@@ -27,10 +26,6 @@ type SnapshotPayload = {
   pins?: unknown;
   version?: number;
 };
-
-export function OPTIONS(request: Request) {
-  return extensionOptions(request);
-}
 
 function cleanList(value: unknown): string[] {
   return Array.isArray(value)
@@ -88,9 +83,9 @@ function storedPins(row: { pinnedFields: string | null } | undefined, state: Rel
 
 export async function GET(request: Request) {
   const user = await apiUser();
-  if (!user) return withExtensionCors(unauthorized(), request);
+  if (!user) return unauthorized();
   const folderId = new URL(request.url).searchParams.get("folderId")?.trim();
-  if (!folderId) return withExtensionCors(Response.json({ error: "folderId is required." }, { status: 400 }), request);
+  if (!folderId) return Response.json({ error: "folderId is required." }, { status: 400 });
 
   const rows = await getDb()
     .select()
@@ -99,7 +94,7 @@ export async function GET(request: Request) {
     .orderBy(desc(snapshots.version))
     .limit(12);
 
-  return withExtensionCors(Response.json({
+  return Response.json({
     snapshots: rows.map((row) => {
       const state = normalizeSnapshot(JSON.parse(row.state) as Partial<RelaySnapshot>);
       return {
@@ -111,16 +106,16 @@ export async function GET(request: Request) {
         pinnedFields: storedPins(row, state),
       };
     }),
-  }), request);
+  });
 }
 
 export async function POST(request: Request) {
   const user = await apiUser();
-  if (!user) return withExtensionCors(unauthorized(), request);
+  if (!user) return unauthorized();
   let payload: SnapshotPayload;
-  try { payload = (await request.json()) as SnapshotPayload; } catch { return withExtensionCors(Response.json({ error: "Couldn't read that request." }, { status: 400 }), request); }
+  try { payload = (await request.json()) as SnapshotPayload; } catch { return Response.json({ error: "Couldn't read that request." }, { status: 400 }); }
   const folderId = payload?.folderId?.trim();
-  if (!folderId) return withExtensionCors(Response.json({ error: "folderId is required." }, { status: 400 }), request);
+  if (!folderId) return Response.json({ error: "folderId is required." }, { status: 400 });
 
   const db = getDb();
   const [folder] = await db
@@ -128,7 +123,7 @@ export async function POST(request: Request) {
     .from(folders)
     .where(and(eq(folders.id, folderId), eq(folders.userId, user.userId)))
     .limit(1);
-  if (!folder) return withExtensionCors(Response.json({ error: "Folder not found." }, { status: 404 }), request);
+  if (!folder) return Response.json({ error: "Folder not found." }, { status: 404 });
 
   const rows = await db
     .select({ role: messages.role, content: messages.content })
@@ -153,15 +148,15 @@ export async function POST(request: Request) {
 
   if (payload.pins !== undefined) {
     // Pins are metadata on the latest version, so changing them does not create a new version.
-    if (!prior || !previous) return withExtensionCors(Response.json({ error: "Save the capsule before pinning items." }, { status: 409 }), request);
-    if (payload.version !== prior.version) return withExtensionCors(Response.json({ error: "The capsule changed. Reload it and try again." }, { status: 409 }), request);
+    if (!prior || !previous) return Response.json({ error: "Save the capsule before pinning items." }, { status: 409 });
+    if (payload.version !== prior.version) return Response.json({ error: "The capsule changed. Reload it and try again." }, { status: 409 });
     const pins = normalizePins(payload.pins, previous);
     const now = new Date().toISOString();
     await db.batch([
       db.update(snapshots).set({ pinnedFields: JSON.stringify(pins) }).where(and(eq(snapshots.id, prior.id), eq(snapshots.userId, user.userId))),
       db.insert(events).values({ id: crypto.randomUUID(), folderId, userId: user.userId, type: "snapshot.pins.updated", data: JSON.stringify({ version: prior.version, pinned: pins.length }), createdAt: now }),
     ]);
-    return withExtensionCors(Response.json({ snapshot: { version: prior.version, state: previous, createdAt: prior.createdAt, schemaVersion: prior.schemaVersion, pinnedFields: pins } }), request);
+    return Response.json({ snapshot: { version: prior.version, state: previous, createdAt: prior.createdAt, schemaVersion: prior.schemaVersion, pinnedFields: pins } });
   }
 
   if (typeof payload.restoreVersion === "number") {
@@ -175,7 +170,7 @@ export async function POST(request: Request) {
         .from(snapshots)
         .where(and(eq(snapshots.folderId, folderId), eq(snapshots.userId, user.userId), eq(snapshots.version, restoredFrom)))
         .limit(1);
-      if (!target) return withExtensionCors(Response.json({ error: "That version no longer exists." }, { status: 404 }), request);
+      if (!target) return Response.json({ error: "That version no longer exists." }, { status: 404 });
       state = normalizeSnapshot(JSON.parse(target.state) as Partial<RelaySnapshot>);
       pinnedFields = storedPins(target, state);
     }
@@ -209,9 +204,9 @@ export async function POST(request: Request) {
     state ??= deterministicSnapshot(rows, previous);
     // Automatic reduction is a draft. Review is required before it becomes handoff state.
     for (const field of ["objective", "currentTask", "nextAction"] as const) if (previous && pinnedFields.includes(field)) state[field] = previous[field];
-    return withExtensionCors(Response.json({snapshot:{version:prior?.version ?? 0,state,createdAt:prior?.createdAt ?? null,pinnedFields},draft:true,reducedBy}),request);
+    return Response.json({snapshot:{version:prior?.version ?? 0,state,createdAt:prior?.createdAt ?? null,pinnedFields},draft:true,reducedBy});
   }
-  if (!state) return withExtensionCors(Response.json({ error: "Nothing to save." }, { status: 400 }), request);
+  if (!state) return Response.json({ error: "Nothing to save." }, { status: 400 });
   const version = (prior?.version ?? 0) + 1;
   const createdAt = new Date().toISOString();
   try {
@@ -238,7 +233,7 @@ export async function POST(request: Request) {
       }),
     ]);
   } catch {
-    return withExtensionCors(Response.json({ error: "Another save arrived at the same time. Reload and try again." }, { status: 409 }), request);
+    return Response.json({ error: "Another save arrived at the same time. Reload and try again." }, { status: 409 });
   }
-  return withExtensionCors(Response.json({ snapshot: { version, state, createdAt, schemaVersion: 1, pinnedFields }, reducedBy }), request);
+  return Response.json({ snapshot: { version, state, createdAt, schemaVersion: 1, pinnedFields }, reducedBy });
 }

@@ -21,7 +21,6 @@ import { reserveCheckpoint } from "../../../lib/checkpoint-limits";
 import { extractCheckpoint, CheckpointReadError } from "../../../lib/checkpoint-engine";
 import { EMPTY_SNAPSHOT, normalizeSnapshot, type RelaySnapshot } from "../../../lib/product";
 import { apiUser, resolveProviderCredential, unauthorized } from "../../../lib/server";
-import { extensionOptions, withExtensionCors } from "../../../lib/extension-cors";
 
 type CheckpointPayload = {
   folderId?: string;
@@ -34,10 +33,6 @@ type CheckpointPayload = {
   tokenBudget?: number;
   editedItems?: unknown;
 };
-
-export function OPTIONS(request: Request) {
-  return extensionOptions(request);
-}
 
 function parseAccepted(value: unknown): Set<string> {
   return new Set(Array.isArray(value) ? value.filter((item): item is string => typeof item === "string").slice(0, 80) : []);
@@ -91,47 +86,47 @@ async function buildGeminiPatch(userId: string, folderId: string, current: Relay
 
 export async function POST(request: Request) {
   const user = await apiUser();
-  if (!user) return withExtensionCors(unauthorized(), request);
+  if (!user) return unauthorized();
   let payload: CheckpointPayload;
   try {
     const reader=request.body?.getReader(),decoder=new TextDecoder();let body="",bytes=0;
     if(!reader)throw new Error();
-    for(;;){const chunk=await reader.read();if(chunk.done)break;bytes+=chunk.value.byteLength;if(bytes>140000){await reader.cancel();return withExtensionCors(Response.json({error:"That request is too large. Use a shorter excerpt."},{status:413}),request);}body+=decoder.decode(chunk.value,{stream:true});}
+    for(;;){const chunk=await reader.read();if(chunk.done)break;bytes+=chunk.value.byteLength;if(bytes>140000){await reader.cancel();return Response.json({error:"That request is too large. Use a shorter excerpt."},{status:413});}body+=decoder.decode(chunk.value,{stream:true});}
     body+=decoder.decode();payload=JSON.parse(body);if(!payload||typeof payload!=="object"||Array.isArray(payload))throw new Error();
-  } catch { return withExtensionCors(Response.json({error:"Couldn't read that request. Keep your paste and try again."},{status:400}),request); }
+  } catch { return Response.json({error:"Couldn't read that request. Keep your paste and try again."},{status:400}); }
   const folderId = typeof payload.folderId === "string" ? payload.folderId.trim() : "";
   const text = typeof payload.text === "string" ? payload.text.trim() : "";
   const mode = payload.mode ?? "preview";
-  if (!["preview","commit"].includes(mode)) return withExtensionCors(Response.json({error:"Choose preview or commit."},{status:400}),request);
-  if (!folderId) return withExtensionCors(Response.json({ error: "Choose a project before saving a checkpoint." }, { status: 400 }), request);
-  if (!text) return withExtensionCors(Response.json({ error: "Paste a recent chat or update block first." }, { status: 400 }), request);
+  if (!["preview","commit"].includes(mode)) return Response.json({error:"Choose preview or commit."},{status:400});
+  if (!folderId) return Response.json({ error: "Choose a project before saving a checkpoint." }, { status: 400 });
+  if (!text) return Response.json({ error: "Paste a recent chat or update block first." }, { status: 400 });
   const runtimeEnv = env as unknown as Record<string, string | undefined>;
   const maxInputChars = Math.max(5_000, Number(runtimeEnv.CHECKPOINT_MAX_INPUT_CHARS || 40_000));
-  if (text.length > maxInputChars) return withExtensionCors(Response.json({ error: `That paste is too large. Paste the most recent useful section (under ${maxInputChars.toLocaleString()} characters).` }, { status: 413 }), request);
+  if (text.length > maxInputChars) return Response.json({ error: `That paste is too large. Paste the most recent useful section (under ${maxInputChars.toLocaleString()} characters).` }, { status: 413 });
   const db = getDb();
   const [folder] = await db.select().from(folders).where(and(eq(folders.id, folderId), eq(folders.userId, user.userId))).limit(1);
-  if (!folder || folder.archived) return withExtensionCors(Response.json({ error: "Project not found." }, { status: 404 }), request);
+  if (!folder || folder.archived) return Response.json({ error: "Project not found." }, { status: 404 });
   const currentRow = await latestSnapshot(folderId, user.userId);
   const current = snapshotState(currentRow);
   const redacted = redactSecrets(text);
   const hash = await sha256(redacted.text);
   const block = parseSolvaneUpdateBlock(redacted.text);
   const budget = Math.min(Number(runtimeEnv.CHECKPOINT_TOKEN_BUDGET || 1500), Math.max(300, Number(payload.tokenBudget) || 1500));
-  if (!block.ok && block.present) return withExtensionCors(Response.json({ error: block.error || "The SOLVANE_UPDATE block is invalid. Ask the model to output a fresh v1 block." }, { status: 400 }), request);
+  if (!block.ok && block.present) return Response.json({ error: block.error || "The SOLVANE_UPDATE block is invalid. Ask the model to output a fresh v1 block." }, { status: 400 });
 
   let patch: CheckpointPatch;
   let source: "update_block" | "gemini" = "update_block";
   try {
     if (mode === "commit") {
       const reviewed = validateCheckpointPatch(payload.patch);
-      if (!reviewed.ok) return withExtensionCors(Response.json({error:"The reviewed patch is invalid. Review again."},{status:400}),request);
+      if (!reviewed.ok) return Response.json({error:"The reviewed patch is invalid. Review again."},{status:400});
       patch = reviewed.patch;
     } else patch = block.ok ? block.patch : await buildGeminiPatch(user.userId, folderId, current, redacted.text, request);
     if (!block.ok) source = "gemini";
   } catch (error) {
     const message = errorMessage(error);
     const status = message.includes("limit reached") || message.includes("budget reached") ? 429 : message.includes("not connected") ? 424 : 502;
-    return withExtensionCors(Response.json({ error: message, ...(error instanceof CheckpointReadError ? { rawPatch: error.rawPatch } : {}) }, { status }), request);
+    return Response.json({ error: message, ...(error instanceof CheckpointReadError ? { rawPatch: error.rawPatch } : {}) }, { status });
   }
 
   let storedPins: unknown = [];
@@ -141,12 +136,12 @@ export async function POST(request: Request) {
   if (mode === "preview") {
     const defaults=new Set(diff.filter((item)=>item.autoApplicable).map((item)=>item.key));
     const uncompressed=applyCheckpointPatch(current,patch,defaults,pinnedFields);
-    try {diff.push(...capsuleBudgetRemovals(uncompressed,fitCapsuleBudget(uncompressed,pinnedFields,budget)));}catch(error){return withExtensionCors(Response.json({error:(error as Error).message},{status:422}),request);}
-    return withExtensionCors(Response.json({ checkpointHash: hash, baseVersion: currentRow?.version ?? 0, source, redactedCount: redacted.count, patch, diff, current, tokenEstimate: estimatePatchTokens(patch), pinnedFields }), request);
+    try {diff.push(...capsuleBudgetRemovals(uncompressed,fitCapsuleBudget(uncompressed,pinnedFields,budget)));}catch(error){return Response.json({error:(error as Error).message},{status:422});}
+    return Response.json({ checkpointHash: hash, baseVersion: currentRow?.version ?? 0, source, redactedCount: redacted.count, patch, diff, current, tokenEstimate: estimatePatchTokens(patch), pinnedFields });
   }
   const validation = validateCheckpointPatch(payload.patch);
-  if (!validation.ok) return withExtensionCors(Response.json({ error: "The reviewed checkpoint is no longer valid. Run Save checkpoint again." }, { status: 400 }), request);
-  if (payload.checkpointHash && payload.checkpointHash !== hash) return withExtensionCors(Response.json({ error: "This checkpoint changed before saving. Run Save checkpoint again." }, { status: 409 }), request);
+  if (!validation.ok) return Response.json({ error: "The reviewed checkpoint is no longer valid. Run Save checkpoint again." }, { status: 400 });
+  if (payload.checkpointHash && payload.checkpointHash !== hash) return Response.json({ error: "This checkpoint changed before saving. Run Save checkpoint again." }, { status: 409 });
   const acceptedKeys = parseAccepted(payload.acceptedKeys);
   const editedItems = parseEdits(payload.editedItems);
   const baseVersion = typeof payload.baseVersion === "number" ? payload.baseVersion : currentRow?.version ?? 0;
@@ -159,11 +154,11 @@ export async function POST(request: Request) {
     const state = normalizeSnapshot(JSON.parse(existing.state) as Partial<RelaySnapshot>);
     let pins: unknown = [];
     try { pins = JSON.parse(existing.pinnedFields); } catch { pins = []; }
-    return withExtensionCors(Response.json({ idempotent: true, snapshot: { version: existing.version, state, createdAt: existing.createdAt, pinnedFields: normalizePins(pins, state) }, previousVersion: existing.version - 1, previousState: current, source, redactedCount: redacted.count, diff }), request);
+    return Response.json({ idempotent: true, snapshot: { version: existing.version, state, createdAt: existing.createdAt, pinnedFields: normalizePins(pins, state) }, previousVersion: existing.version - 1, previousState: current, source, redactedCount: redacted.count, diff });
   };
   const replayed = await replay();
   if (replayed) return replayed;
-  if (baseVersion !== (currentRow?.version ?? 0)) return withExtensionCors(Response.json({error:"The project changed on another device. Review this checkpoint again."},{status:409}),request);
+  if (baseVersion !== (currentRow?.version ?? 0)) return Response.json({error:"The project changed on another device. Review this checkpoint again."},{status:409});
   let nextState: RelaySnapshot;
   let nextPinnedFields: string[];
   try {
@@ -171,12 +166,12 @@ export async function POST(request: Request) {
     nextPinnedFields=pinsAfterReview(pinnedFields, diff, acceptedKeys, editedItems, before);
     nextState=fitCapsuleBudget(before,nextPinnedFields,budget);
     nextPinnedFields=normalizePins(nextPinnedFields,nextState);
-    if(capsuleBudgetRemovals(before,nextState).some((item)=>!acceptedKeys.has(item.key))) return withExtensionCors(Response.json({error:"Fitting this capsule requires removing old items. Accept the budget removals in the review, or shorten your edits and review again."},{status:422}),request);
+    if(capsuleBudgetRemovals(before,nextState).some((item)=>!acceptedKeys.has(item.key))) return Response.json({error:"Fitting this capsule requires removing old items. Accept the budget removals in the review, or shorten your edits and review again."},{status:422});
   }
-  catch (error) { return withExtensionCors(Response.json({error:(error as Error).message},{status:422}),request); }
+  catch (error) { return Response.json({error:(error as Error).message},{status:422}); }
   // Nothing accepted means nothing to save: report the current version instead of creating an identical one.
   if (JSON.stringify(nextState) === JSON.stringify(current) && JSON.stringify([...nextPinnedFields].sort()) === JSON.stringify([...pinnedFields].sort())) {
-    return withExtensionCors(Response.json({ idempotent: true, unchanged: true, snapshot: { version: currentRow?.version ?? 0, state: current, createdAt: currentRow?.createdAt ?? null, pinnedFields }, previousVersion: null, previousState: current, source, redactedCount: redacted.count, diff }), request);
+    return Response.json({ idempotent: true, unchanged: true, snapshot: { version: currentRow?.version ?? 0, state: current, createdAt: currentRow?.createdAt ?? null, pinnedFields }, previousVersion: null, previousState: current, source, redactedCount: redacted.count, diff });
   }
   const version = (currentRow?.version ?? 0) + 1;
   const createdAt = new Date().toISOString();
@@ -187,7 +182,7 @@ export async function POST(request: Request) {
   ]);
   } catch {
     // A concurrent copy of this exact review may have won the race; replay it instead of failing.
-    return (await replay()) ?? withExtensionCors(Response.json({error:"Another save arrived at the same time. Review again; your text is still here."},{status:409}),request);
+    return (await replay()) ?? Response.json({error:"Another save arrived at the same time. Review again; your text is still here."},{status:409});
   }
-  return withExtensionCors(Response.json({ idempotent: false, snapshot: { version, state: nextState, createdAt, pinnedFields: nextPinnedFields }, previousVersion: currentRow?.version ?? 0, previousState: current, source, redactedCount: redacted.count, diff }), request);
+  return Response.json({ idempotent: false, snapshot: { version, state: nextState, createdAt, pinnedFields: nextPinnedFields }, previousVersion: currentRow?.version ?? 0, previousState: current, source, redactedCount: redacted.count, diff });
 }
