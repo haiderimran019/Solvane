@@ -6,7 +6,7 @@
 - GitHub source: <https://github.com/haiderimran019/Solvane>
 - Sites project: `appgprj_6ace76bef1208191b660ee30650b9ae6`
 - Previous hosted version: 3; the checkpoint/reliability revision was successfully deployed on 14 October 2026 (Site source commit dc960bd723650acfb68bf4781ee9cd2df0351270).
-- Current revision includes the reviewed checkpoint flow, shared extension validation, folder-map intake, and reliability controls; the existing owner-only audience is preserved.
+- Current revision includes the reviewed checkpoint flow, shared extension validation, folder-map intake, and reliability controls. The hosted Site is public-link accessible; sign-in remains required for per-user project ownership and cross-device continuity.
 
 ## Implemented in this source revision
 

@@ -133,7 +133,7 @@ The next browser-companion slice now uses the same Manrope/teal design, defaults
 
 Verified behavior: the home screen exposes one dominant `Continue in ChatGPT` action and one `Save latest progress` action; Save opens the existing checkpoint/Gemini review flow; Continue opens the existing exact-payload handoff review; Project memory preserves capsule editing; Advanced preserves Browser Bridge, provider order, privacy controls, and API Automation.
 
-Not yet claimed: the extension running on a real authenticated Claude page, a real Claude usage-limit event, a production Gemini call in this revision, or a production deployment. This revision has not been pushed or deployed.
+Verified later in this report: the unpacked extension on authenticated Claude and ChatGPT pages, a reviewed block save, safe insertion into ChatGPT without sending, GitHub publication, and a production deployment. The Site was subsequently opened to public visitors while retaining per-user sign-in and data isolation. Still not claimed: a real Claude usage-limit event, a live ordinary-prose Gemini extraction, or the target model's final response.
 
 Date: 15 October 2026. Scope: paste/checkpoint, browser chip, Gemini boundary, review/versioning, handoff, API fallback, and release packaging.
 
@@ -215,11 +215,11 @@ The browser fixture found a real over-escaped update-block regex bug. It was fix
 ## Not verified / external gates
 
 - Real Gemini extraction quality, hallucination resistance, source fidelity, blocked output, 429 and timeout latency. Mocked responses test our pipeline; they do not prove model behavior. Server and hosted configuration had no GEMINI_API_KEY.
-- Real installed extension auth/cookies, selectors and insertion on Claude, ChatGPT, Gemini and Perplexity in Chrome/Edge. They require the user's authenticated browser sessions and an actual unpacked extension install.
+- Real installed extension behavior remains unverified on Gemini and Perplexity and in Edge. Authenticated Claude capture/review and ChatGPT insertion were verified in Chrome.
 - A real provider usage-limit hit and the target LLM's response correctly restating a real project. No automated Send is performed.
 - Full browser reload/recovery of every offline/session-expiry path. Queue helpers and recovery UI exist; multi-tab queue races and browser storage quota remain pilot risks.
 - Cross-device acceptance and two real admitted production accounts. User-scoped backend queries and simulated account isolation were tested.
-- GitHub Actions run `38570641813` completed successfully for commit `5936d674f212aebd546273a65a4db3c255183893`: extension build, all test suites, TypeScript, ESLint, and production build passed from a clean checkout.
+- A prior GitHub Actions run `38570641813` completed successfully for commit `5936d674f212aebd546273a65a4db3c255183893`. The final local `main` revision also passed checkpoint, engine, provider, automation, extension, TypeScript, ESLint, and production-build gates before push.
 - Hosted audience remains unchanged. Only admitted testers can access the existing pilot; GitHub Pages alone cannot run the Worker/D1 backend.
 
 ## Cost and privacy limits
@@ -230,7 +230,7 @@ Redaction is pattern-based. It covers common API keys, bearer tokens, .env-style
 
 ## Hosted publication
 
-The supported Sites workflow packaged source commit `fd9686c54db6b5355e964e3d9392e6fee7f5f9f9` and deployed its saved version successfully to https://solvane.rareyew64.chatgpt.site on 15 October 2026. The existing owner-only audience was preserved. Valid update blocks work without a Gemini call; ordinary prose still requires a working server-side Gemini configuration.
+The supported Sites workflow packaged source commit `c341f07f3358e7514cada64a58ea89f055ac4f79` and deployed saved version `appgprj_6ace76bef1208191b660ee30650b9ae6~appgver_277dd0ede2008191a0e06f5d6786d190` successfully to https://solvane.rareyew64.chatgpt.site on 15 October 2026. Site access was changed from the owner-only pilot to public-link access on 15 October 2026; visitors still authenticate so projects remain isolated per user and work across devices. GitHub `main` contains the release source and documentation. Valid update blocks work without a Gemini call; ordinary prose through the live Gemini boundary remains a separate real-world verification gate.
 
 ## Reproduce
 

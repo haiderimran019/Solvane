@@ -28,7 +28,9 @@ The product has two complementary modes:
 - Phase 2 Browser chip: click/`Alt+S` capture on four provider sites, explicit URL-to-project binding, local redaction, in-page diff drawer, ten-second undo, freshness label, and reviewed save-and-continue handoff.
 - Phase 3 automation: opt-in stable update-block detection, best-effort limit banners, checkpoint reminders, offline retry queue, API quota failover logs, onboarding/settings controls, privacy-safe metrics, and delete-all data control.
 
-Read [the pilot acceptance workflow](docs/15-pilot-acceptance.md) to test the exact Save → review → version → Continue journey, configure Gemini, and understand the remaining live-provider gate.\n\n## Repository map
+Read [the pilot acceptance workflow](docs/15-pilot-acceptance.md) to test the exact Save → review → version → Continue journey, configure Gemini, and understand the remaining live-provider gate.
+
+## Repository map
 
 | Path | Purpose |
 | --- | --- |
