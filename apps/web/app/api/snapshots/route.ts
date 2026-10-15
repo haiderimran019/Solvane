@@ -1,4 +1,4 @@
-import { and, desc, eq } from "drizzle-orm";
+import { and, desc, eq, lt } from "drizzle-orm";
 import { getDb } from "../../../db";
 import { events, folders, messages, snapshots } from "../../../db/schema";
 import { callProvider } from "../../../lib/providers";
@@ -84,18 +84,23 @@ function storedPins(row: { pinnedFields: string | null } | undefined, state: Rel
 export async function GET(request: Request) {
   const user = await apiUser();
   if (!user) return unauthorized();
-  const folderId = new URL(request.url).searchParams.get("folderId")?.trim();
+  const params = new URL(request.url).searchParams;
+  const folderId = params.get("folderId")?.trim();
   if (!folderId) return Response.json({ error: "folderId is required." }, { status: 400 });
+  // Pages of 12, newest first; `before` continues below an already-loaded version.
+  const before = Number(params.get("before"));
+  const PAGE = 12;
 
   const rows = await getDb()
     .select()
     .from(snapshots)
-    .where(and(eq(snapshots.folderId, folderId), eq(snapshots.userId, user.userId)))
+    .where(and(eq(snapshots.folderId, folderId), eq(snapshots.userId, user.userId), ...(before > 0 ? [lt(snapshots.version, before)] : [])))
     .orderBy(desc(snapshots.version))
-    .limit(12);
+    .limit(PAGE + 1);
 
   return Response.json({
-    snapshots: rows.map((row) => {
+    hasMore: rows.length > PAGE,
+    snapshots: rows.slice(0, PAGE).map((row) => {
       const state = normalizeSnapshot(JSON.parse(row.state) as Partial<RelaySnapshot>);
       return {
         version: row.version,
@@ -121,7 +126,7 @@ export async function POST(request: Request) {
   const [folder] = await db
     .select()
     .from(folders)
-    .where(and(eq(folders.id, folderId), eq(folders.userId, user.userId)))
+    .where(and(eq(folders.id, folderId), eq(folders.userId, user.userId), eq(folders.archived, false)))
     .limit(1);
   if (!folder) return Response.json({ error: "Folder not found." }, { status: 404 });
 

@@ -1,5 +1,31 @@
 # Solvane pilot test report
 
+## Honest UI (Phase 3) — 16 October 2026
+
+- **Home follows your providers.** The source is the first provider in the project's order. The target is the default handoff, else the provider continued in last, else ChatGPT, then the rest of the order, never the source. The hero, button, diagram and phone Continue all use them. Existing projects with default settings still show Claude → ChatGPT.
+- **No hardcoded status:**
+  - The header shows the real capsule version and save time, or "Not saved yet" with an amber dot.
+  - The sidebar says "Saved to your account / Open it on any signed-in device" instead of claiming live sync.
+  - The Home note reports "Nothing saved yet", "Capsule needs more context" (amber) or "Ready to continue" from the actual capsule.
+  - The readiness facts describe the process ("Saved only after your review", "Common secret formats redacted").
+- **Rename and delete:**
+  - A pencil beside the project title renames inline.
+  - Advanced → Delete this project removes its capsule versions, messages and events, keeping only an archived "Deleted project" row with its processing-limit reservations. Deleting projects therefore cannot reset the daily Gemini allowance.
+  - Deleted projects return 404 for reads, renames, restores, handoffs and deletes, and are not counted on the account page.
+- **Full history.** Version history loads 12 at a time with "Show older versions".
+
+Tests:
+- Continue-target rules: unit test.
+- History paging, rename, and deletion (content removed, reservations kept, 404s afterwards): route tests.
+
+Verified in the dashboard:
+- Default settings show Claude → ChatGPT, and switching the default handoff to Gemini changed the hero, button and diagram.
+- The header and the amber note reflect a 45% capsule.
+- Rename updated the title, header, sidebar and server.
+- A 14-version project paged v14–v3, then v2–v1.
+- Deleting a project showed the confirmation, switched projects, returned 404 for the old ID, and kept the account count consistent.
+- A fresh tab visiting every view logged no console errors.
+
 ## Extension reliability (Phase 2) — 15 October 2026
 
 - **One capsule builder (0.4.3).** The dashboard, the extension and `handoff.md` all use `buildCapsulePrompt` from the shared core. Extension handoffs are now readable sections with the project name and real line breaks (previously a JSON dump with literal `\n`), and they apply the dashboard's privacy choices, which now sync to the extension.

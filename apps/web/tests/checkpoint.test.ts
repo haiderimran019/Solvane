@@ -17,7 +17,7 @@ import {
   validateCheckpointPatch,
   type CheckpointPatch,
 } from "../lib/checkpoint.ts";
-import { normalizeSnapshot, type RelaySnapshot } from "../lib/product.ts";
+import { continueTarget, normalizeSnapshot, type RelaySnapshot } from "../lib/product.ts";
 
 const block = (json: string) => `<<<SOLVANE_UPDATE v1\n${json}\nSOLVANE_UPDATE>>>`;
 const cleanPatch = { decisions_add: ["Use local-first review"], done_add: ["Built checkpoint UI"], open_questions_add: [], open_questions_resolve: [], constraints_add: ["Stay under 1,500 tokens"], next_step: "Run the browser handoff test", changes: [] };
@@ -133,6 +133,16 @@ describe("checkpoint schema and merge rules", () => {
     const huge: CheckpointPatch = { ...cleanPatch, decisions_add: Array.from({ length: 10 }, (_, index) => `Decision ${index} ${"long ".repeat(60)}`) };
     const compressed = compressCheckpointPatch(huge, 120);
     assert.ok(estimatePatchTokens(compressed) <= 120);
+  });
+});
+
+describe("continue target", () => {
+  it("follows the default handoff, then the last provider, then ChatGPT, and never the working provider", () => {
+    assert.equal(continueTarget(["claude", "gemini", "openai", "perplexity"], "last", null), "openai");
+    assert.equal(continueTarget(["claude", "gemini", "openai", "perplexity"], "gemini", "perplexity"), "gemini");
+    assert.equal(continueTarget(["claude", "gemini", "openai", "perplexity"], "last", "perplexity"), "perplexity");
+    assert.equal(continueTarget(["openai", "claude", "gemini", "perplexity"], "last", null), "claude");
+    assert.equal(continueTarget(["openai", "claude", "gemini", "perplexity"], "openai", "openai"), "claude");
   });
 });
 

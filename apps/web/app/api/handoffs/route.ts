@@ -61,7 +61,7 @@ export async function POST(request: Request) {
   const [folder] = await db
     .select({ id: folders.id })
     .from(folders)
-    .where(and(eq(folders.id, folderId), eq(folders.userId, user.userId)))
+    .where(and(eq(folders.id, folderId), eq(folders.userId, user.userId), eq(folders.archived, false)))
     .limit(1);
   if (!folder) return Response.json({ error: "Folder not found." }, { status: 404 });
 

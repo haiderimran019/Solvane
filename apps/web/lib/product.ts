@@ -99,6 +99,16 @@ export function isProviderId(value: unknown): value is ProviderId {
   return typeof value === "string" && PROVIDER_IDS.includes(value as ProviderId);
 }
 
+/**
+ * Where "Continue" goes: the chosen default handoff, else the provider continued in last, else ChatGPT (the v1
+ * Claude → ChatGPT route), then the rest of the order. Never the provider the person works in (first in order).
+ */
+export function continueTarget(order: ProviderId[], defaultHandoff: "last" | ProviderId, lastProvider?: ProviderId | null): ProviderId {
+  const source = order[0];
+  const candidates: Array<ProviderId | null | undefined> = [defaultHandoff === "last" ? null : defaultHandoff, lastProvider, "openai", ...order];
+  return candidates.find((provider): provider is ProviderId => Boolean(provider) && provider !== source) ?? "openai";
+}
+
 export function parseProviderOrder(value: string): ProviderId[] {
   try {
     const parsed = JSON.parse(value) as unknown[];

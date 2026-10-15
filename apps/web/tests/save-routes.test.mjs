@@ -20,7 +20,9 @@ function app(){
   const commit=(text,review,choose=all,edits={})=>call(checkpoint,{text,mode:"commit",patch:review.patch,acceptedKeys:choose(review.diff),editedItems:edits,checkpointHash:review.checkpointHash,baseVersion:review.baseVersion});
   const save=async(text,choose=all,edits={})=>{const review=await preview(text);assert.equal(review.status,200,review.error);return commit(text,review,choose,edits);};
   const latest=async()=>(await (await snapshots.GET(new Request("http://test/api/snapshots?folderId=project"))).json()).snapshots[0];
-  return {snapshots,itemPinKey,call,preview,commit,save,latest};
+  const folder=h.load(path.join(root,"app/api/folders/[id]/route.ts"));
+  const params={params:Promise.resolve({id:"project"})};
+  return {h,snapshots,folder,params,itemPinKey,call,preview,commit,save,latest};
 }
 
 test("Undo restores without pinning anything, so the next accepted save applies in full",async()=>{
@@ -98,4 +100,39 @@ test("pins change on the latest version only, migrate legacy field pins, and tra
   const restored=await a.call(a.snapshots,{restoreVersion:1});
   assert.equal(restored.snapshot.version,3);
   assert.deepEqual(restored.snapshot.pinnedFields.sort(),pinned.snapshot.pinnedFields.sort());
+});
+
+test("version history pages past the first 12",async()=>{
+  const a=app();
+  const first=await a.save(block({decisions_add:["Version 1"]}));
+  let state=first.snapshot.state;
+  for(let n=2;n<=14;n++){const edit=await a.call(a.snapshots,{state:{...state,nextAction:`Step ${n}`},reason:"edit"});state=edit.snapshot.state;}
+  const page=async(query)=>(await a.snapshots.GET(new Request(`http://test/api/snapshots?folderId=project${query}`))).json();
+  const newest=await page("");
+  assert.deepEqual(newest.snapshots.map((row)=>row.version),[14,13,12,11,10,9,8,7,6,5,4,3]);
+  assert.equal(newest.hasMore,true);
+  const older=await page("&before=3");
+  assert.deepEqual(older.snapshots.map((row)=>row.version),[2,1]);
+  assert.equal(older.hasMore,false);
+});
+
+test("a project can be renamed, and deleting it removes its content but keeps rate-limit reservations",async()=>{
+  const a=app();
+  const patch=await a.folder.PATCH(new Request("http://test",{method:"PATCH",body:JSON.stringify({name:"Renamed project"})}),a.params);
+  assert.equal(patch.status,200);
+  assert.equal((await (await a.folder.GET(new Request("http://test"),a.params)).json()).folder.name,"Renamed project");
+  await a.save(block({decisions_add:["Use SQLite"]}));
+  a.h.sqlite.prepare("INSERT INTO events(id,folder_id,user_id,type,data,created_at) VALUES('reservation','project','alice','checkpoint.reserved','{}',?)").run(new Date().toISOString());
+  const deleted=await a.folder.DELETE(new Request("http://test",{method:"DELETE"}),a.params);
+  assert.equal(deleted.status,200);
+  const count=(sql)=>a.h.sqlite.prepare(sql).get().n;
+  assert.equal(count("SELECT COUNT(*) n FROM snapshots WHERE folder_id='project'"),0);
+  assert.equal(count("SELECT COUNT(*) n FROM messages WHERE folder_id='project'"),0);
+  assert.deepEqual(a.h.sqlite.prepare("SELECT type FROM events WHERE folder_id='project'").all().map((row)=>row.type),["checkpoint.reserved"]);
+  assert.deepEqual({...a.h.sqlite.prepare("SELECT name, archived FROM folders WHERE id='project'").get()},{name:"Deleted project",archived:1});
+  // A deleted project can no longer be read, renamed, restored into, or deleted again.
+  assert.equal((await a.folder.GET(new Request("http://test"),a.params)).status,404);
+  assert.equal((await a.folder.PATCH(new Request("http://test",{method:"PATCH",body:JSON.stringify({name:"Back"})}),a.params)).status,404);
+  assert.equal((await a.call(a.snapshots,{restoreVersion:0})).status,404);
+  assert.equal((await a.folder.DELETE(new Request("http://test",{method:"DELETE"}),a.params)).status,404);
 });
