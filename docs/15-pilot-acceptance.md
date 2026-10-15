@@ -7,7 +7,7 @@ Ali keeps working in Claude. Solvane keeps only the explicit state he reviews. H
 1. Open the dashboard and create or choose a project. Open Save checkpoint.
 2. Copy project instruction into your existing Claude/ChatGPT project instructions. It contains a complete v1 JSON example, not an ellipsis placeholder.
 3. Work normally. Copy the model's SOLVANE_UPDATE block into Solvane, or use the browser chip.
-4. Save checkpoint. A valid block is validated without Google processing. Additions start accepted by default. Changed and removed rows start neutral; Accept turns the row green, Reject turns it red, and the counter confirms the choice. Use Edit & pin to correct a fact.
+4. Save checkpoint. A valid block is validated without Google processing. Review additions, replacements, and removals; rejected additions remain rejected. Use Edit & pin to correct a fact.
 5. Accept & save. Check the new version and Undo; Activity has Preview and Restore as new version.
 6. Continue in ChatGPT. Inspect the exact payload in the handoff dialog, copy/open the official site, insert or paste, then press Send yourself.
 7. Confirm that ChatGPT restates the project accurately and proposes the recorded next action. That final response is the manual acceptance criterion, not something a GitHub build can establish.
@@ -28,7 +28,7 @@ Folder adoption uses a directory input under Save checkpoint. Metadata mode incl
 
 ## Model research, checked 14 October 2026
 
-The hosted checkpoint is configured for `gemini-3.1-flash-lite`, selected as a current low-cost structured-output model compatible with the deployed GenerateContent request. One safe live checkpoint completed in about 9.3 seconds. A broader real-key quality/latency evaluation is still required before claiming it passes every model fixture; deterministic and controlled-transport tests do not prove all live-model behavior.
+Google lists gemini-2.5-flash-lite at $0.10 input / $0.40 output per million text tokens, versus $0.30 / $2.50 for gemini-2.5-flash. Flash-Lite is the configurable platform-key checkpoint default. A real-key quality/latency evaluation is still required before claiming it passes the model fixtures. The deterministic and mocked-transport tests do not prove live model behavior.
 
 Sources: [Google pricing](https://ai.google.dev/gemini-api/docs/pricing), [structured output](https://ai.google.dev/gemini-api/docs/structured-output), [Gemini data-use terms](https://ai.google.dev/gemini-api/terms). Google's unpaid service can use content to improve products; paid service terms differ. The app discloses Google processing and links the terms before submitting a paste.
 
@@ -36,7 +36,7 @@ Sources: [Google pricing](https://ai.google.dev/gemini-api/docs/pricing), [struc
 
 Repeat this in Chrome and Edge for Claude, ChatGPT, Gemini and Perplexity:
 
-- [ ] Install the unpacked 0.3.0 extension, sign in to Solvane, and link the chat to the right project.
+- [ ] Install the unpacked 0.4.1 extension, sign in to Solvane, and link the chat to the right project.
 - [ ] With auto-detect off, no assistant messages are read until Save/Alt+S.
 - [ ] With auto-detect on, partial streaming does not produce an update; completed blocks pulse the chip; duplicate blocks do not create another version.
 - [ ] Save/review/accept a real update. Check pinned fields, rejected additions, one clear next action, Undo, version restore, and source excerpts.
@@ -55,4 +55,4 @@ Repeat this in Chrome and Edge for Claude, ChatGPT, Gemini and Perplexity:
 
 ## Release boundary
 
-The code includes CI, Playwright review tests, migrations, extension source/archive, a privacy page, and a static index.html tester entry. GitHub Pages can host index.html but cannot run this authenticated Worker/D1 backend. The Sites deployment has a masked server-side Gemini key; the existing audience remains unchanged, so admitted testers still need access. Live external-provider capture and insertion remain manual acceptance gates.
+The code includes CI, tests, migrations, extension source/archive, a privacy page, and a static index.html tester entry. GitHub Pages can host index.html but cannot run this authenticated Worker/D1 backend. The existing Sites audience remains unchanged; admitted testers need access to that hosted pilot. No real Gemini key was available during this run, and live external provider acceptance is therefore still a manual gate.

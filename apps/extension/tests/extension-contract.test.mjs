@@ -23,7 +23,20 @@ assert.match(content, /navigator\.clipboard/);
 assert.match(content, /sv-review/);
 assert.match(content, /SolvaneCore.redactSecrets/);
 assert.match(content, /solvaneBindings/);
+assert.match(content, /pendingBinding: null/);
+assert.match(content, /isUnscopedPage/);
+assert.match(content, /Linked for this new chat/);
+assert.match(content, /rejects: new Set\(\)/);
+assert.match(content, /state\.rejects\.has\(item\.key\)/);
+assert.match(content, /state\.rejects\.delete\(button\.dataset\.accept\)/);
+assert.match(content, /state\.rejects\.add\(button\.dataset\.reject\)/);
+assert.match(content, /defaultHandoff: "openai"/);
+assert.match(content, /Save project progress/);
 assert.match(config, /version:/);
+for (const path of ['openai: {', 'claude: {', 'gemini: {', 'perplexity: {']) {
+  const section = config.slice(config.indexOf(path), config.indexOf('},', config.indexOf(path)) + 2);
+  assert.match(section, /unscopedPaths:/, `${path} must define generic new-chat paths`);
+}
 assert.match(background, /solvane-api/);
 assert.match(options, /autoDetect/);
 for (const provider of ["chatgpt", "claude", "gemini", "perplexity"]) {

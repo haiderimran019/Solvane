@@ -99,7 +99,7 @@ type HandoffRecord = {
   createdAt: string;
 };
 type FailoverRecord = { id: string; from: ProviderId; to: ProviderId; reason: string; snapshotVersion: number; createdAt: string };
-type WorkspaceView = "capsule" | "checkpoint" | "activity" | "settings";
+type WorkspaceView = "capsule" | "memory" | "checkpoint" | "activity" | "settings";
 
 type CheckpointPreview = {
   checkpointHash: string;
@@ -639,48 +639,43 @@ export function RelayDashboard({ user }: { user: { name: string; email: string }
 
   return (
     <main className="solvane-shell">
-      <header className="app-header">
+      <header className="app-header app-header-v2">
         <button className="mobile-menu" onClick={() => setShowMobileNav(true)} aria-label="Open navigation"><Menu size={20} /></button>
         <Brand />
-        <div className="header-context"><span>{detail?.folder.name || "Opening workspace"}</span><i /><b>Synced</b></div>
-        <div className="header-actions"><button className="shortcut-button" onClick={() => setShowQuickSwitch(true)}><Zap size={15} /><span>Quick handoff</span><kbd>⇧⌘S</kbd></button><button className="avatar" title={user.email} aria-label="Open profile and data center" onClick={openProfile}>{initials}</button></div>
+        <div className="header-context"><span>{detail?.folder.name || "Opening project"}</span><i /><b>Up to date</b></div>
+        <div className="header-actions"><button className="shortcut-button" onClick={() => { setCheckpointText(""); setCheckpointPreview(null); setView("checkpoint"); }}><Sparkles size={15} /><span>Save progress</span></button><button className="avatar" title={user.email} aria-label="Open profile and data center" onClick={openProfile}>{initials}</button></div>
       </header>
 
       <div className="app-frame">
         <aside className={showMobileNav ? "project-rail mobile-open" : "project-rail"}>
           <div className="mobile-rail-head"><Brand /><button onClick={() => setShowMobileNav(false)} aria-label="Close navigation"><X size={19} /></button></div>
           <nav className="primary-nav" aria-label="Workspace views">
-            <NavButton active={view === "capsule"} icon={<LayoutDashboard size={17} />} label="Continuity" onClick={() => { setView("capsule"); setShowMobileNav(false); }} />
-            <NavButton active={view === "checkpoint"} icon={<FileDiff size={17} />} label="Save checkpoint" onClick={() => { setView("checkpoint"); setShowMobileNav(false); }} />
+            <NavButton active={view === "capsule"} icon={<LayoutDashboard size={17} />} label="Home" onClick={() => { setView("capsule"); setShowMobileNav(false); }} />
+            <NavButton active={view === "memory"} icon={<Database size={17} />} label="Project memory" onClick={() => { setView("memory"); setShowMobileNav(false); }} />
+            <NavButton active={view === "checkpoint"} icon={<Sparkles size={17} />} label="Save progress" onClick={() => { setView("checkpoint"); setShowMobileNav(false); }} />
             <NavButton active={view === "activity"} icon={<History size={17} />} label="Activity" count={handoffs.length} onClick={() => { setView("activity"); setShowMobileNav(false); }} />
-            <NavButton active={view === "settings"} icon={<Settings2 size={17} />} label="Modes & settings" onClick={() => { setView("settings"); setShowMobileNav(false); }} />
+            <NavButton active={view === "settings"} icon={<Settings2 size={17} />} label="Advanced" onClick={() => { setView("settings"); setShowMobileNav(false); }} />
           </nav>
           <div className="rail-section-head"><span>Projects</span><button onClick={() => setShowNewFolder(true)} aria-label="New project"><Plus size={16} /></button></div>
           {showNewFolder && <form className="new-project-form" onSubmit={createFolder}><input autoFocus value={newFolderName} onChange={(event) => setNewFolderName(event.target.value)} placeholder="Project name" maxLength={80} /><button type="submit" aria-label="Create project"><Check size={15} /></button><button type="button" onClick={() => setShowNewFolder(false)} aria-label="Cancel"><X size={15} /></button></form>}
           <nav className="project-list" aria-label="Projects">{folders.map((folder) => <button key={folder.id} className={folder.id === activeFolderId ? "project-item active" : "project-item"} onClick={() => { setActiveFolderId(folder.id); setView("capsule"); setShowMobileNav(false); }}><span className="project-icon"><Folder size={15} /></span><span><strong>{folder.name}</strong><small>{formatRelative(folder.updatedAt)}</small></span><ChevronRight size={14} /></button>)}</nav>
           <button className="new-project-card" onClick={() => setShowNewFolder(true)}><FolderPlus size={17} /><span><strong>New project</strong><small>Start with a clean capsule</small></span></button>
-          <div className="rail-footer"><div className="device-status"><Cloud size={15} /><span><strong>Cloud workspace</strong><small>Available on every device</small></span><i /></div><button className="account-row" onClick={openProfile}><span className="mini-avatar">{initials}</span><span><strong>{user.name}</strong><small>{user.email}</small></span><ChevronRight size={14} /></button></div>
+          <div className="rail-footer"><div className="device-status"><Cloud size={15} /><span><strong>Project memory synced</strong><small>Ready on your devices</small></span><i /></div><button className="account-row" onClick={openProfile}><span className="mini-avatar">{initials}</span><span><strong>{user.name}</strong><small>Profile & privacy</small></span><ChevronRight size={14} /></button></div>
         </aside>
 
-        <section className="workspace-main">
+        <section className="workspace-main workspace-main-v2">
           {loading || !detail ? <div className="workspace-loader"><LoaderCircle className="spin" size={28} /><span>Assembling your workspace…</span></div> : <>
-            <div className="workspace-titlebar"><div><p className="eyebrow"><Activity size={12} /> Active project</p><h1>{detail.folder.name}</h1><p>{detail.folder.description || "One living state for every AI you use."}</p></div><div className="mode-switch" aria-label="Solvane mode"><button className={view === "settings" ? "" : "active"} onClick={() => { setView("capsule"); track("mode.opened", { mode: "browser" }); }}><AppWindow size={14} /> Browser Bridge</button><button className={view === "settings" ? "active" : ""} onClick={() => { setView("settings"); track("mode.opened", { mode: "api" }); }}><Code2 size={14} /> API mode</button></div></div>
-            <ProviderRoute folder={detail.folder} providers={providers} onMove={moveProvider} />
-            {view === "capsule" && <CapsuleWorkspace state={activeState} draft={draft} editing={editing} version={detail.snapshot.version} createdAt={detail.snapshot.createdAt} tokenEstimate={tokenEstimate} contextHealth={contextHealth} saving={saving} captureText={captureText} onDraftChange={setDraft} onCaptureText={setCaptureText} onCapture={captureIntoDraft} onCheckpoint={() => { setCheckpointText(""); setCheckpointPreview(null); setView("checkpoint"); }} onEdit={() => { setDraft(normalizeSnapshot(detail.snapshot.state)); setEditing(true); }} onCancel={() => { setDraft(normalizeSnapshot(detail.snapshot.state)); setEditing(false); }} onSave={() => void saveCapsule()} onRescue={() => void rescueSession()} onPreview={() => setShowPreview(true)} />}
+            {view !== "capsule" && <div className="workspace-titlebar workspace-titlebar-v2"><div><button className="back-home" onClick={() => setView("capsule")}><ArrowRight size={14} /> Back home</button><p className="eyebrow"><Activity size={12} /> {detail.folder.name}</p><h1>{view === "memory" ? "Project memory" : view === "checkpoint" ? "Save progress" : view === "activity" ? "Project history" : "Advanced controls"}</h1></div>{view === "settings" && <span className="advanced-pill">API mode stays available</span>}</div>}
+            {view === "capsule" && <ContinuityHome project={detail.folder} state={activeState} version={detail.snapshot.version} createdAt={detail.snapshot.createdAt} tokenEstimate={tokenEstimate} contextHealth={contextHealth} handoffs={handoffs} onSave={() => { setCheckpointText(""); setCheckpointPreview(null); setView("checkpoint"); }} onContinue={() => prepareHandoff("openai")} onPreview={() => setShowPreview(true)} onOpenMemory={() => setView("memory")} />}
+            {view === "memory" && <CapsuleWorkspace state={activeState} draft={draft} editing={editing} version={detail.snapshot.version} createdAt={detail.snapshot.createdAt} tokenEstimate={tokenEstimate} contextHealth={contextHealth} saving={saving} captureText={captureText} onDraftChange={setDraft} onCaptureText={setCaptureText} onCapture={captureIntoDraft} onCheckpoint={() => { setCheckpointText(""); setCheckpointPreview(null); setView("checkpoint"); }} onEdit={() => { setDraft(normalizeSnapshot(detail.snapshot.state)); setEditing(true); }} onCancel={() => { setDraft(normalizeSnapshot(detail.snapshot.state)); setEditing(false); }} onSave={() => void saveCapsule()} onRescue={() => void rescueSession()} onPreview={() => setShowPreview(true)} />}
             {view === "checkpoint" && <CheckpointWorkspace rawPatch={checkpointRawPatch} onRawPatch={setCheckpointRawPatch} text={checkpointText} preview={checkpointPreview} accepts={checkpointAccepts} rejects={checkpointRejects} busy={checkpointBusy} savedVersion={checkpointSavedVersion} suggestedProvider={suggestProvider(checkpointText || activeState.currentTask, detail.folder.providerOrder, automationSettings.defaultHandoff === "last" ? lastProvider : automationSettings.defaultHandoff)} onIntake={(text) => setCheckpointText((prior) => [prior,text].filter(Boolean).join("\n\n"))} edits={checkpointEdits} onEdit={(item) => { const value = window.prompt("Edit this fact. Your accepted edit will be pinned.", checkpointEdits[item.key] || item.to || item.text); if(value?.trim()) { setCheckpointEdits((prev)=>({...prev,[item.key]:value.trim()})); setCheckpointAccepts((prev)=>new Set([...prev,item.key])); setCheckpointRejects((prev)=>{const next=new Set(prev);next.delete(item.key);return next;}); } }} onText={setCheckpointText} onPreview={() => void previewCheckpoint()} onCommit={() => void commitCheckpoint()} onDecision={(key, decision) => { setCheckpointAccepts((current) => { const next = new Set(current); if (decision === "accepted") next.add(key); else next.delete(key); return next; }); setCheckpointRejects((current) => { const next = new Set(current); if (decision === "rejected") next.add(key); else next.delete(key); return next; }); }} onAcceptAdditions={() => { const keys=checkpointPreview?.diff.filter((item) => item.kind === "added").map((item) => item.key) ?? []; setCheckpointAccepts((current) => new Set([...current, ...keys])); setCheckpointRejects((current)=>{const next=new Set(current);keys.forEach((key)=>next.delete(key));return next;}); }} onContinue={prepareHandoff} onCopyInstruction={() => void copyProjectInstruction()} />}
             {view === "activity" && <ActivityWorkspace handoffs={handoffs} failovers={failovers} versions={versions} onPreview={(snapshot) => setVersionPreview(snapshot)} onRestore={(snapshot) => void restoreVersion(snapshot)} />}
-            {view === "settings" && <><SettingsWorkspace providers={providers} folder={detail.folder} messages={detail.messages} privacy={privacy} apiComposer={apiComposer} sending={sending} automation={automationSettings} onboarding={onboarding} onPrivacy={updatePrivacy} onConnections={() => setShowConnections(true)} onToggleFallback={(value) => void persistFolderSettings({ autoFallback: value })} onAutomation={updateAutomationSettings} onComposer={setApiComposer} onSend={sendApiMessage} onExport={exportCodeHandoff} onDeleteAll={deleteAllData} onCopyInstruction={() => void copyProjectInstruction()} /><AutomationSettingsPanel automation={automationSettings} onboarding={onboarding} onAutomation={updateAutomationSettings} onDeleteAll={deleteAllData} onCopyInstruction={() => void copyProjectInstruction()} /></>}
+            {view === "settings" && <><ProviderRoute folder={detail.folder} providers={providers} onMove={moveProvider} /><SettingsWorkspace providers={providers} folder={detail.folder} messages={detail.messages} privacy={privacy} apiComposer={apiComposer} sending={sending} automation={automationSettings} onboarding={onboarding} onPrivacy={updatePrivacy} onConnections={() => setShowConnections(true)} onToggleFallback={(value) => void persistFolderSettings({ autoFallback: value })} onAutomation={updateAutomationSettings} onComposer={setApiComposer} onSend={sendApiMessage} onExport={exportCodeHandoff} onDeleteAll={deleteAllData} onCopyInstruction={() => void copyProjectInstruction()} /><AutomationSettingsPanel automation={automationSettings} onboarding={onboarding} onAutomation={updateAutomationSettings} onDeleteAll={deleteAllData} onCopyInstruction={() => void copyProjectInstruction()} /></>}
           </>}
         </section>
-
-        <aside className="action-rail">
-          <section className="continue-card"><div className="card-kicker"><Sparkles size={13} /> Continue in</div><h2>Choose the best mind for what comes next.</h2><div className="provider-actions">{PROVIDER_IDS.map((provider) => <button key={provider} onClick={() => prepareHandoff(provider)} disabled={!detail}><ProviderMark provider={provider} /><span><strong>{PROVIDERS[provider].name}</strong><small>{PROVIDERS[provider].role}</small></span><ArrowRight size={16} /></button>)}</div><p className="free-note"><ShieldCheck size={13} /> Free mode uses your existing logged-in accounts. No API key required.</p></section>
-          <section className="health-card"><div className="health-head"><span><Gauge size={15} /> Context health</span><strong>{contextHealth}%</strong></div><div className="health-track"><i style={{ width: `${contextHealth}%` }} /></div><p>{contextHealth >= 75 ? "Strong enough for a clean handoff." : "Add a decision and clear next step before switching."}</p><div className="memory-budget"><span>Capsule budget</span><b>{tokenEstimate} / 1,500 tokens</b></div></section>
-          <section className="recent-card"><div className="recent-head"><span>Recent handoffs</span><button onClick={() => setView("activity")}>View all</button></div>{handoffs.length ? handoffs.slice(0, 3).map((handoff) => <div className="handoff-mini" key={handoff.id}><ProviderMark provider={handoff.target} small /><span><strong>Continued in {PROVIDERS[handoff.target].name}</strong><small>Capsule v{handoff.snapshotVersion} · {formatRelative(handoff.createdAt)}</small></span></div>) : <p className="empty-note">Your first handoff will appear here.</p>}</section>
-        </aside>
       </div>
 
-      <nav className="mobile-bottom-nav" aria-label="Mobile navigation"><button className={view === "capsule" ? "active" : ""} onClick={() => setView("capsule")}><LayoutDashboard size={18} /><span>Capsule</span></button><button className={view === "checkpoint" ? "active" : ""} onClick={() => setView("checkpoint")}><FileDiff size={18} /><span>Save</span></button><button onClick={() => setShowQuickSwitch(true)}><span className="handoff-fab"><Zap size={20} /></span><span>Handoff</span></button><button className={view === "activity" ? "active" : ""} onClick={() => setView("activity")}><History size={18} /><span>Activity</span></button><button className={view === "settings" ? "active" : ""} onClick={() => setView("settings")}><Settings2 size={18} /><span>Modes</span></button></nav>
+      <nav className="mobile-bottom-nav mobile-bottom-nav-v2" aria-label="Mobile navigation"><button className={view === "capsule" ? "active" : ""} onClick={() => setView("capsule")}><LayoutDashboard size={18} /><span>Home</span></button><button className={view === "checkpoint" ? "active" : ""} onClick={() => setView("checkpoint")}><Sparkles size={18} /><span>Save</span></button><button className="continue-nav" onClick={() => detail ? prepareHandoff("openai") : setShowQuickSwitch(true)}><span className="handoff-fab"><ArrowRight size={20} /></span><span>Continue</span></button><button className={view === "activity" ? "active" : ""} onClick={() => setView("activity")}><History size={18} /><span>History</span></button><button className={view === "settings" ? "active" : ""} onClick={() => setView("settings")}><Settings2 size={18} /><span>More</span></button></nav>
       {(error || notice) && <div className={error ? "toast error" : "toast success"}>{error ? <CircleAlert size={16} /> : <Check size={16} />}<span>{error || notice}</span>{!error && checkpointUndo && notice?.startsWith("Saved") && <button className="toast-undo" onClick={() => void undoCheckpoint()}><Undo2 size={13} /> Undo</button>}<button onClick={() => { setError(null); setNotice(null); }} aria-label="Dismiss"><X size={14} /></button></div>}
       {showPreview && detail && <PreviewDialog prompt={relayPrompt} tokenEstimate={tokenEstimate} onCopy={() => void copyRelayPrompt()} onContinue={prepareHandoff} onClose={() => setShowPreview(false)} />}
       {versionPreview && detail && <PreviewDialog prompt={buildRelayPrompt(detail.folder, versionPreview.state, privacy)} tokenEstimate={Math.ceil(buildRelayPrompt(detail.folder, versionPreview.state, privacy).length / 4)} onCopy={() => void copyText(buildRelayPrompt(detail.folder, versionPreview.state, privacy))} onContinue={prepareHandoff} onClose={() => setVersionPreview(null)} />}
@@ -698,6 +693,67 @@ function NavButton({ active, icon, label, count, onClick }: { active: boolean; i
 
 function ProviderRoute({ folder, providers, onMove }: { folder: FolderSummary; providers: ProviderStatus[]; onMove: (index: number, direction: -1 | 1) => void }) {
   return <section className="provider-route" aria-label="Provider preference order"><div className="route-copy"><span>Preferred route</span><small>Priority for Browser Bridge and API fallback</small></div><div className="route-lane">{folder.providerOrder.map((provider, index) => { const apiConnected = providers.find((item) => item.id === provider)?.connected; return <div className="route-node" key={provider}><b>{index + 1}</b><ProviderMark provider={provider} small /><span><strong>{PROVIDERS[provider].name}</strong><small>{apiConnected ? "Browser + API" : "Browser ready"}</small></span><div><button onClick={() => onMove(index, -1)} disabled={index === 0} aria-label={`Move ${PROVIDERS[provider].name} earlier`}><ArrowUp size={11} /></button><button onClick={() => onMove(index, 1)} disabled={index === folder.providerOrder.length - 1} aria-label={`Move ${PROVIDERS[provider].name} later`}><ArrowDown size={11} /></button></div></div>; })}</div></section>;
+}
+
+function ContinuityHome({ project, state, version, createdAt, tokenEstimate, contextHealth, handoffs, onSave, onContinue, onPreview, onOpenMemory }: { project: FolderSummary; state: RelaySnapshot; version: number; createdAt: string | null; tokenEstimate: number; contextHealth: number; handoffs: HandoffRecord[]; onSave: () => void; onContinue: () => void; onPreview: () => void; onOpenMemory: () => void }) {
+  const ready = contextHealth >= 75;
+  return <div className="continuity-home">
+    <section className="continuity-hero">
+      <div className="hero-copy">
+        <div className="live-status"><i /> {createdAt ? `Saved ${formatRelative(createdAt)}` : "Ready for your first save"}</div>
+        <p className="eyebrow">Active project</p>
+        <h1>{project.name}</h1>
+        <p className="hero-description">Work in Claude. Solvane keeps the important state ready, so ChatGPT can continue without you explaining everything again.</p>
+        <div className="hero-actions">
+          <button className="continue-primary" onClick={onContinue}><span><ProviderMark provider="openai" small /><b>Continue in ChatGPT</b></span><ArrowRight size={18} /></button>
+        </div>
+        <p className="trust-line"><ShieldCheck size={14} /> You review what moves. Solvane never presses Send.</p>
+      </div>
+      <div className="continuity-orbit" aria-label="Claude to ChatGPT continuity status">
+        <div className="orbit-provider source"><ProviderMark provider="claude" /><span><strong>Claude</strong><small>Current work</small></span></div>
+        <div className="orbit-path"><i /><span className="orbit-capsule"><Sparkles size={21} /></span><i /></div>
+        <div className="orbit-provider target"><ProviderMark provider="openai" /><span><strong>ChatGPT</strong><small>Ready next</small></span></div>
+        <div className="orbit-note"><Check size={14} /><span><strong>Project memory ready</strong><small>Capsule v{version} · {tokenEstimate} tokens</small></span></div>
+      </div>
+    </section>
+
+    <button className="continuity-composer" onClick={onSave} aria-label="Save the latest project progress">
+      <span className="composer-spark"><Sparkles size={18} /></span>
+      <span className="composer-copy"><strong>Save what changed…</strong><small>Paste the latest exchange or use the browser chip</small></span>
+      <kbd>Alt S</kbd>
+      <span className="composer-send"><ArrowUp size={18} /></span>
+    </button>
+
+    <section className="continuity-grid">
+      <article className="next-card">
+        <div className="card-topline"><span className="soft-icon"><Target size={17} /></span><span>Next action</span><button onClick={onPreview}>Review memory</button></div>
+        <h2>{state.nextAction || "Save your latest work to set the next action."}</h2>
+        <div className="project-now"><span><b>Working on</b>{state.currentTask || "Project state not established yet."}</span><ChevronRight size={18} /></div>
+      </article>
+
+      <article className="readiness-card">
+        <div className="readiness-head"><span><Gauge size={16} /> Handoff readiness</span><strong>{contextHealth}%</strong></div>
+        <div className="readiness-track"><i style={{ width: `${contextHealth}%` }} /></div>
+        <p>{ready ? "Everything important is ready to carry forward." : "Save the latest chat before moving so the next model gets the full picture."}</p>
+        <div className="readiness-facts"><span><Check size={13} /> User-approved state</span><span><ShieldCheck size={13} /> Secrets redacted</span></div>
+      </article>
+
+      <article className="memory-card">
+        <div className="card-topline"><span className="soft-icon"><Database size={17} /></span><span>What Solvane remembers</span><button onClick={onOpenMemory}>Trust preview</button></div>
+        <div className="memory-summary">
+          <div><strong>{state.decisions.length}</strong><span>decisions</span></div>
+          <div><strong>{state.completed.length}</strong><span>completed</span></div>
+          <div><strong>{state.openQuestions.length}</strong><span>open questions</span></div>
+        </div>
+        <p>{state.objective || "Your project goal will appear here after the first save."}</p>
+      </article>
+
+      <article className="recent-continuity-card">
+        <div className="card-topline"><span className="soft-icon"><History size={17} /></span><span>Recent continuity</span></div>
+        {handoffs.length ? handoffs.slice(0, 2).map((handoff) => <div className="continuity-row" key={handoff.id}><ProviderMark provider={handoff.target} small /><span><strong>Continued in {PROVIDERS[handoff.target].name}</strong><small>v{handoff.snapshotVersion} · {formatRelative(handoff.createdAt)}</small></span><Check size={14} /></div>) : <div className="continuity-empty"><Sparkles size={18} /><span><strong>Your first handoff starts here</strong><small>Save in Claude, then continue in ChatGPT.</small></span></div>}
+      </article>
+    </section>
+  </div>;
 }
 
 function CapsuleWorkspace(props: { state: RelaySnapshot; draft: RelaySnapshot; editing: boolean; version: number; createdAt: string | null; tokenEstimate: number; contextHealth: number; saving: boolean; captureText: string; onDraftChange: (state: RelaySnapshot) => void; onCaptureText: (value: string) => void; onCapture: () => void; onCheckpoint: () => void; onEdit: () => void; onCancel: () => void; onSave: () => void; onRescue: () => void; onPreview: () => void }) {

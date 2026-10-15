@@ -11,4 +11,4 @@ document.getElementById('complete').onclick=()=>{const assistant=document.getEle
 document.getElementById('limit').onclick=()=>{document.getElementById('assistant').textContent='Usage limit reached. Try again later.';};
 document.getElementById('offline').onclick=()=>{offline=!offline;document.getElementById('diagnostic').textContent='Offline simulation: '+offline;};
 window.open=(url)=>{document.getElementById('diagnostic').textContent='Opened target: '+url;return {closed:false,location:{set href(value){document.getElementById('diagnostic').textContent='Opened target: '+value;}}};};
-</script><script src="provider-config.js"></script><script>window.SOLVANE_PROVIDER_CONFIG.providers.claude.hostname=location.hostname;</script><script src="checkpoint-core.js"></script><script src="content.js"></script></body></html>
+</script><script src="../provider-config.js"></script><script>window.SOLVANE_PROVIDER_CONFIG.providers.claude.hostname=location.hostname;</script><script src="../checkpoint-core.js"></script><script src="../content.js"></script></body></html>

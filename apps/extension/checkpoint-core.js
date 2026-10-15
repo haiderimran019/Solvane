@@ -7,6 +7,7 @@ exports.validateCheckpointPatch = validateCheckpointPatch;
 exports.parseSolvaneUpdateBlock = parseSolvaneUpdateBlock;
 exports.redactSecrets = redactSecrets;
 exports.checkpointTextHash = checkpointTextHash;
+exports.checkpointFieldLabel = checkpointFieldLabel;
 exports.diffCheckpoint = diffCheckpoint;
 exports.applyCheckpointPatch = applyCheckpointPatch;
 exports.compressCheckpointPatch = compressCheckpointPatch;
@@ -145,8 +146,67 @@ function additionKey(field, text) {
 function resolveKey(text) {
     return `remove:openQuestions:${hashKey(text.toLocaleLowerCase())}`;
 }
+function factTokens(value) {
+    const stopWords = new Set([
+        "a", "an", "and", "are", "be", "been", "being", "decide", "decided", "for", "has", "have",
+        "is", "it", "must", "need", "needs", "of", "on", "our", "project", "required", "requires",
+        "should", "the", "this", "to", "use", "used", "uses", "using", "we", "will",
+    ]);
+    return new Set(value.toLocaleLowerCase().normalize("NFKC").replace(/[^\p{L}\p{N}]+/gu, " ").split(/\s+/).filter((token) => token && !stopWords.has(token)));
+}
+function nearDuplicateFact(left, right) {
+    const a = factTokens(left);
+    const b = factTokens(right);
+    if (!a.size || !b.size)
+        return left.trim().toLocaleLowerCase() === right.trim().toLocaleLowerCase();
+    let shared = 0;
+    for (const token of a)
+        if (b.has(token))
+            shared += 1;
+    return shared / Math.max(a.size, b.size) >= 0.8;
+}
+function additionPriority(field, value) {
+    if (field === "constraints" && /\b(must|never|cannot|can't|only|under|limit|required|without)\b/i.test(value))
+        return 5;
+    if (field === "completed" && /\b(done|complete|completed|built|implemented|finished|fixed|shipped|tested)\b/i.test(value))
+        return 4;
+    if (field === "decisions")
+        return 3;
+    if (field === "constraints")
+        return 2;
+    return 1;
+}
+function checkpointFieldLabel(field) {
+    const labels = {
+        objective: "Goal",
+        currentTask: "Current task",
+        nextAction: "Next step",
+        decisions: "Decision",
+        constraints: "Constraint",
+        completed: "Completed work",
+        openQuestions: "Open question",
+        doNotRepeat: "Do not repeat",
+        artifacts: "Artifact",
+        sources: "Source",
+    };
+    return labels[field] ?? field.replace(/([a-z])([A-Z])/g, "$1 $2").replace(/^./, (character) => character.toUpperCase());
+}
 function diffCheckpoint(current, patch, pinnedFields = []) {
     const diff = [];
+    const additions = [
+        ...patch.decisions_add.map((value) => ({ field: "decisions", value })),
+        ...patch.done_add.map((value) => ({ field: "completed", value })),
+        ...patch.open_questions_add.map((value) => ({ field: "openQuestions", value })),
+        ...patch.constraints_add.map((value) => ({ field: "constraints", value })),
+    ];
+    const selectedAdditions = [];
+    for (const candidate of additions) {
+        const duplicateIndex = selectedAdditions.findIndex((existing) => nearDuplicateFact(existing.value, candidate.value));
+        if (duplicateIndex < 0)
+            selectedAdditions.push(candidate);
+        else if (additionPriority(candidate.field, candidate.value) > additionPriority(selectedAdditions[duplicateIndex].field, selectedAdditions[duplicateIndex].value))
+            selectedAdditions[duplicateIndex] = candidate;
+    }
     const add = (field, value) => {
         const currentItems = current[field];
         const values = Array.isArray(currentItems) ? currentItems : [];
@@ -154,25 +214,24 @@ function diffCheckpoint(current, patch, pinnedFields = []) {
             diff.push({ key: additionKey(field, value), kind: "added", field, text: value, autoApplicable: !pinnedFields.includes(field), pinned: pinnedFields.includes(field) });
         }
     };
-    for (const value of patch.decisions_add)
-        add("decisions", value);
-    for (const value of patch.done_add)
-        add("completed", value);
-    for (const value of patch.open_questions_add)
-        add("openQuestions", value);
-    for (const value of patch.constraints_add)
-        add("constraints", value);
-    if (patch.next_step && patch.next_step !== current.nextAction) {
-        diff.push({ key: "change:nextAction:next_step", kind: "changed", field: "nextAction", text: "Next step", from: current.nextAction, to: patch.next_step, autoApplicable: false, contradiction: Boolean(current.nextAction && current.nextAction !== patch.next_step && pinnedFields.includes("nextAction")) });
-    }
-    patch.changes.forEach((change, index) => {
+    for (const { field, value } of selectedAdditions)
+        add(field, value);
+    const changedFields = new Set();
+    patch.changes.forEach((change) => {
         const field = change.field === "next_step" ? "nextAction" : change.field;
+        if (changedFields.has(field))
+            return;
         const currentValue = current[field];
         const actual = Array.isArray(currentValue) ? currentValue.join(", ") : String(currentValue ?? "");
         if (change.to && change.to !== actual) {
-            diff.push({ key: `change:${index}:${field}`, kind: "changed", field, text: field, from: change.from || actual, to: change.to, autoApplicable: false, contradiction: Boolean(change.from && actual !== change.from), sourceExcerpt: change.source_excerpt, pinned: pinnedFields.includes(field) });
+            changedFields.add(field);
+            diff.push({ key: `change:${field}`, kind: "changed", field, text: checkpointFieldLabel(field), from: change.from || actual, to: change.to, autoApplicable: false, contradiction: Boolean(change.from && actual !== change.from), sourceExcerpt: change.source_excerpt, pinned: pinnedFields.includes(field) });
         }
     });
+    // A source-backed replacement in changes[] wins over next_step so one field never renders twice.
+    if (patch.next_step && patch.next_step !== current.nextAction && !changedFields.has("nextAction")) {
+        diff.push({ key: "change:nextAction", kind: "changed", field: "nextAction", text: checkpointFieldLabel("nextAction"), from: current.nextAction, to: patch.next_step, autoApplicable: false, contradiction: Boolean(current.nextAction && current.nextAction !== patch.next_step && pinnedFields.includes("nextAction")) });
+    }
     for (const value of patch.open_questions_resolve) {
         if (current.openQuestions.some((item) => item.toLocaleLowerCase() === value.toLocaleLowerCase())) {
             diff.push({ key: resolveKey(value), kind: "removed", field: "openQuestions", text: value, autoApplicable: false });

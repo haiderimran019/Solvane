@@ -2,6 +2,10 @@
 
 Solvane is a continuity layer for people who work across Claude, Gemini, ChatGPT, Perplexity, Codex, and Claude Code. It turns the active state of a project into a small, inspectable **Continuity Capsule** and carries that capsule to the next model.
 
+## Current product focus
+
+The first live story is deliberately narrower: **work in Claude → save the useful state → review it → continue in ChatGPT**. The app home screen now serves that story directly. Other providers, detailed capsule editing, and API Automation remain available, but are secondary surfaces under Project memory and Advanced. This keeps the first-use experience simple without deleting the underlying platform work.
+
 The product has two complementary modes:
 
 | Mode | For | Cost model | Handoff |
