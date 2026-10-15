@@ -422,6 +422,33 @@ export function fitCapsuleBudget(state: RelaySnapshot, pinned: readonly string[]
 
 export const PROJECT_INSTRUCTION = `After meaningful progress, output a complete update block using only explicit project facts, with no secrets. Keep next_step to one concrete action. Put replacements in changes; include a verbatim source_excerpt for each replacement. Never overwrite user-pinned facts. Use this exact format:\n<<<SOLVANE_UPDATE v1\n{"decisions_add":[],"done_add":[],"open_questions_add":[],"open_questions_resolve":[],"constraints_add":[],"next_step":"","changes":[]}\nSOLVANE_UPDATE>>>`;
 
+export type CapsulePrivacy = { includeDecisions: boolean; includeConstraints: boolean; includeArtifacts: boolean; excludeCode: boolean };
+export const DEFAULT_CAPSULE_PRIVACY: CapsulePrivacy = { includeDecisions: true, includeConstraints: true, includeArtifacts: true, excludeCode: false };
+
+/** The one handoff text that the dashboard, the extension and handoff.md all send, with the person's privacy choices applied. */
+export function buildCapsulePrompt(input: { projectName?: string; state: RelaySnapshot; privacy?: Partial<CapsulePrivacy> | null }): string {
+  const privacy = { ...DEFAULT_CAPSULE_PRIVACY, ...(input.privacy ?? {}) };
+  const { state } = input;
+  const clean = (value: string) => (privacy.excludeCode ? value.replace(/```[\s\S]*?```/g, "[code intentionally excluded]") : value);
+  const section = (title: string, items: string[]) => (items.length ? [`${title}:\n${items.map((item) => `- ${clean(item)}`).join("\n")}`] : []);
+  return [
+    "SOLVANE CONTINUITY CAPSULE",
+    ...(input.projectName ? [`Project: ${input.projectName}`] : []),
+    `Objective: ${clean(state.objective)}`,
+    `Current task: ${clean(state.currentTask)}`,
+    ...(privacy.includeDecisions ? section("Decisions", state.decisions) : []),
+    ...(privacy.includeConstraints ? section("Constraints", state.constraints) : []),
+    ...section("Completed", state.completed),
+    ...section("Open questions", state.openQuestions),
+    ...section("Do not repeat", state.doNotRepeat),
+    ...(privacy.includeArtifacts ? [...section("Artifacts", state.artifacts), ...section("Sources", state.sources)] : []),
+    `NEXT STEP: ${clean(state.nextAction)}`,
+    "Continue from this state. Do not claim access to hidden reasoning or missing chat history. Ask only for information that truly blocks the next step.",
+    "First restate the goal, current task and next step to confirm understanding, then continue.",
+    PROJECT_INSTRUCTION,
+  ].join("\n\n");
+}
+
 export const CHECKPOINT_RESPONSE_SCHEMA = {
   type: "object", additionalProperties: false,
   required: ["decisions_add", "done_add", "open_questions_add", "open_questions_resolve", "constraints_add", "next_step", "changes"],

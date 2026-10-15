@@ -10,6 +10,7 @@ const content = await readFile(join(extension, "content.js"), "utf8");
 const config = await readFile(join(extension, "provider-config.js"), "utf8");
 const background = await readFile(join(extension, "background.js"), "utf8");
 const options = await readFile(join(extension, "options.js"), "utf8");
+const core = await readFile(join(extension, "checkpoint-core.js"), "utf8");
 
 assert.equal(manifest.manifest_version, 3);
 assert.deepEqual(manifest.permissions.sort(), ["clipboardWrite", "storage"]);
@@ -32,6 +33,10 @@ assert.match(content, /state\.rejects\.delete\(button\.dataset\.accept\)/);
 assert.match(content, /state\.rejects\.add\(button\.dataset\.reject\)/);
 assert.match(content, /defaultHandoff: "openai"/);
 assert.match(content, /Save project progress/);
+// Handoffs use the dashboard's builder (compiled into checkpoint-core.js), not a separate JSON dump.
+assert.match(content, /SolvaneCore\.buildCapsulePrompt/);
+assert.match(core, /function buildCapsulePrompt/);
+assert.doesNotMatch(content, /JSON\.stringify\(value, null, 2\)/);
 assert.match(config, /version:/);
 for (const path of ['openai: {', 'claude: {', 'gemini: {', 'perplexity: {']) {
   const section = config.slice(config.indexOf(path), config.indexOf('},', config.indexOf(path)) + 2);

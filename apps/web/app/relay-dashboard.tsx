@@ -54,7 +54,7 @@ import {
   type ProviderId,
   type RelaySnapshot,
 } from "../lib/product";
-import { PROJECT_INSTRUCTION, checkpointFieldLabel, isPinned, itemPinKey, redactSecrets, type CheckpointDiffItem as CheckpointDiff } from "../lib/checkpoint";
+import { DEFAULT_CAPSULE_PRIVACY, PROJECT_INSTRUCTION, buildCapsulePrompt, checkpointFieldLabel, isPinned, itemPinKey, redactSecrets, type CapsulePrivacy, type CheckpointDiffItem as CheckpointDiff } from "../lib/checkpoint";
 import ProjectIntake from "./project-intake";
 
 type FolderSummary = {
@@ -138,13 +138,6 @@ type AccountSummary = {
 
 const CONSENT_STORAGE_KEY = "solvane-consent-v1";
 
-const DEFAULT_PRIVACY = {
-  includeDecisions: true,
-  includeConstraints: true,
-  includeArtifacts: true,
-  excludeCode: false,
-};
-
 async function api<T>(url: string, init?: RequestInit): Promise<T> {
   const response = await fetch(url, {
     ...init,
@@ -198,39 +191,6 @@ function formatRelative(date: string) {
   return new Date(date).toLocaleDateString(undefined, { month: "short", day: "numeric" });
 }
 
-function buildRelayPrompt(
-  project: FolderSummary,
-  state: RelaySnapshot,
-  privacy: typeof DEFAULT_PRIVACY,
-) {
-  const clean = (value: string) =>
-    privacy.excludeCode ? value.replace(/```[\s\S]*?```/g, "[code intentionally excluded]") : value;
-  const lines = [
-    "SOLVANE CONTINUITY CAPSULE",
-    `Project: ${project.name}`,
-    `Objective: ${clean(state.objective)}`,
-    `Current task: ${clean(state.currentTask)}`,
-  ];
-  if (privacy.includeDecisions && state.decisions.length) {
-    lines.push(`Decisions:\n${state.decisions.map((item) => `- ${clean(item)}`).join("\n")}`);
-  }
-  if (privacy.includeConstraints && state.constraints.length) {
-    lines.push(`Constraints:\n${state.constraints.map((item) => `- ${clean(item)}`).join("\n")}`);
-  }
-  if (state.completed.length) lines.push(`Completed:\n${state.completed.map((item) => `- ${clean(item)}`).join("\n")}`);
-  if (state.openQuestions.length) lines.push(`Open questions:\n${state.openQuestions.map((item) => `- ${clean(item)}`).join("\n")}`);
-  if (state.doNotRepeat.length) lines.push(`Do not repeat:\n${state.doNotRepeat.map((item) => `- ${clean(item)}`).join("\n")}`);
-  if (privacy.includeArtifacts && state.artifacts.length) lines.push(`Artifacts:\n${state.artifacts.map((item) => `- ${clean(item)}`).join("\n")}`);
-  if (privacy.includeArtifacts && state.sources.length) lines.push(`Sources:\n${state.sources.map((item) => `- ${item}`).join("\n")}`);
-  lines.push(
-    `NEXT STEP: ${clean(state.nextAction)}`,
-    "Continue from this state. Do not claim access to hidden reasoning or missing chat history. Ask only for information that truly blocks the next step.",
-    "First restate the goal, current task and next step to confirm understanding, then continue.",
-    PROJECT_INSTRUCTION,
-  );
-  return lines.join("\n\n");
-}
-
 function suggestProvider(text: string, order: ProviderId[], lastUsed?: ProviderId | null) {
   const lower = text.toLocaleLowerCase();
   if (/\b(pdf|paper|long document|large file)\b/.test(lower)) return order.includes("gemini") ? "gemini" : order[0];
@@ -266,7 +226,7 @@ export function RelayDashboard({ user }: { user: { name: string; email: string }
   const [versionPreview, setVersionPreview] = useState<SnapshotVersion | null>(null);
   const [lastProvider, setLastProvider] = useState<ProviderId | null>(null);
   const [apiComposer, setApiComposer] = useState("");
-  const [privacy, setPrivacy] = useState(DEFAULT_PRIVACY);
+  const [privacy, setPrivacy] = useState<CapsulePrivacy>(DEFAULT_CAPSULE_PRIVACY);
   const [showConnections, setShowConnections] = useState(false);
   const [showPreview, setShowPreview] = useState(false);
   const [showQuickSwitch, setShowQuickSwitch] = useState(false);
@@ -323,7 +283,7 @@ export function RelayDashboard({ user }: { user: { name: string; email: string }
     queueMicrotask(() => {
       const stored = window.localStorage.getItem("solvane-privacy");
       if (stored) {
-        try { setPrivacy({ ...DEFAULT_PRIVACY, ...(JSON.parse(stored) as typeof DEFAULT_PRIVACY) }); }
+        try { setPrivacy({ ...DEFAULT_CAPSULE_PRIVACY, ...(JSON.parse(stored) as CapsulePrivacy) }); }
         catch { window.localStorage.removeItem("solvane-privacy"); }
       }
       const storedConsent = window.localStorage.getItem(CONSENT_STORAGE_KEY);
@@ -356,15 +316,17 @@ export function RelayDashboard({ user }: { user: { name: string; email: string }
       if (event.source !== window || event.origin !== window.location.origin || event.data?.type !== "solvane-extension-ready") return;
       const value = {installed:true,linked:Boolean(detail),saved:Boolean(detail?.snapshot.version),continued:handoffs.length>0};
       setOnboarding(value); window.localStorage.setItem("solvane-onboarding",JSON.stringify(value));
-      window.postMessage({type:"solvane-settings",settings:{...automationSettings,providerOrder:detail?.folder.providerOrder}},window.location.origin);
+      window.postMessage({type:"solvane-settings",settings:{...automationSettings,providerOrder:detail?.folder.providerOrder,privacy}},window.location.origin);
     };
     window.addEventListener("message",announce);
-    window.postMessage({type:"solvane-settings",settings:{...automationSettings,providerOrder:detail?.folder.providerOrder}},window.location.origin);
+    // The extension builds the same capsule, so it receives the privacy choices along with the other settings.
+    window.postMessage({type:"solvane-settings",settings:{...automationSettings,providerOrder:detail?.folder.providerOrder,privacy}},window.location.origin);
     return () => window.removeEventListener("message",announce);
-  },[automationSettings,detail,handoffs.length]);
+  },[automationSettings,detail,handoffs.length,privacy]);
 
   const activeState = editing ? draft : detail?.snapshot.state ?? EMPTY_SNAPSHOT;
-  const relayPrompt = detail ? buildRelayPrompt(detail.folder, activeState, privacy) : "";
+  const relayPrompt = detail ? buildCapsulePrompt({ projectName: detail.folder.name, state: activeState, privacy }) : "";
+  const versionPrompt = detail && versionPreview ? buildCapsulePrompt({ projectName: detail.folder.name, state: versionPreview.state, privacy }) : "";
   const tokenEstimate = Math.max(1, Math.ceil(relayPrompt.length / 4));
   const contextHealth = useMemo(() => {
     let score = 10;
@@ -455,7 +417,7 @@ export function RelayDashboard({ user }: { user: { name: string; email: string }
     const value = { ...automationSettings, ...next };
     setAutomationSettings(value);
     window.localStorage.setItem("solvane-automation-settings", JSON.stringify(value));
-    window.postMessage({type:"solvane-settings", settings:{...value, providerOrder:detail?.folder.providerOrder}}, window.location.origin);
+    window.postMessage({type:"solvane-settings", settings:{...value, providerOrder:detail?.folder.providerOrder, privacy}}, window.location.origin);
     flash("Settings saved. The installed extension receives them on this device.");
   }
 
@@ -631,7 +593,7 @@ export function RelayDashboard({ user }: { user: { name: string; email: string }
     setCaptureText(""); setEditing(true);
     flash("Captured into the capsule draft. Review and save it.");
   }
-  function updatePrivacy(key: keyof typeof DEFAULT_PRIVACY, value: boolean) {
+  function updatePrivacy(key: keyof CapsulePrivacy, value: boolean) {
     const next = { ...privacy, [key]: value };
     setPrivacy(next); window.localStorage.setItem("solvane-privacy", JSON.stringify(next));
   }
@@ -694,7 +656,7 @@ export function RelayDashboard({ user }: { user: { name: string; email: string }
       <nav className="mobile-bottom-nav mobile-bottom-nav-v2" aria-label="Mobile navigation"><button className={view === "capsule" ? "active" : ""} onClick={() => setView("capsule")}><LayoutDashboard size={18} /><span>Home</span></button><button className={view === "checkpoint" ? "active" : ""} onClick={() => setView("checkpoint")}><Sparkles size={18} /><span>Save</span></button><button className="continue-nav" onClick={() => detail ? prepareHandoff("openai") : setShowQuickSwitch(true)}><span className="handoff-fab"><ArrowRight size={20} /></span><span>Continue</span></button><button className={view === "activity" ? "active" : ""} onClick={() => setView("activity")}><History size={18} /><span>History</span></button><button className={view === "settings" ? "active" : ""} onClick={() => setView("settings")}><Settings2 size={18} /><span>More</span></button></nav>
       {(error || notice) && <div className={error ? "toast error" : "toast success"}>{error ? <CircleAlert size={16} /> : <Check size={16} />}<span>{error || notice}</span>{!error && checkpointUndo && notice?.startsWith("Saved") && <button className="toast-undo" onClick={() => void undoCheckpoint()}><Undo2 size={13} /> Undo</button>}<button onClick={() => { setError(null); setNotice(null); }} aria-label="Dismiss"><X size={14} /></button></div>}
       {showPreview && detail && <PreviewDialog prompt={relayPrompt} tokenEstimate={tokenEstimate} onCopy={() => void copyRelayPrompt()} onContinue={prepareHandoff} onClose={() => setShowPreview(false)} />}
-      {versionPreview && detail && <PreviewDialog prompt={buildRelayPrompt(detail.folder, versionPreview.state, privacy)} tokenEstimate={Math.ceil(buildRelayPrompt(detail.folder, versionPreview.state, privacy).length / 4)} onCopy={() => void copyText(buildRelayPrompt(detail.folder, versionPreview.state, privacy))} onContinue={prepareHandoff} onClose={() => setVersionPreview(null)} />}
+      {versionPreview && detail && <PreviewDialog prompt={versionPrompt} tokenEstimate={Math.ceil(versionPrompt.length / 4)} onCopy={() => void copyText(versionPrompt)} onContinue={prepareHandoff} onClose={() => setVersionPreview(null)} />}
       {showQuickSwitch && detail && <QuickSwitchDialog version={detail.snapshot.version} health={contextHealth} onContinue={prepareHandoff} onClose={() => setShowQuickSwitch(false)} />}
       {launchProvider && detail && <HandoffLaunchDialog provider={launchProvider} version={detail.snapshot.version} tokenEstimate={tokenEstimate} prompt={automationSettings.alwaysShowWhatWillBeSent ? relayPrompt : undefined} onLaunch={() => launchInProvider(launchProvider)} onClose={() => setLaunchProvider(null)} />}
       {showConnections && <ConnectionsPanel providers={providers} onClose={() => setShowConnections(false)} onChanged={bootstrap} />}
@@ -801,9 +763,9 @@ function CapsuleList({ field, label, items, pins, onTogglePin, editing, onChange
 function ActivityWorkspace({ handoffs, failovers, versions, onPreview, onRestore }: { handoffs: HandoffRecord[]; failovers: FailoverRecord[]; versions: SnapshotVersion[]; onPreview: (snapshot: SnapshotVersion) => void; onRestore: (snapshot: SnapshotVersion) => void }) { return <div className="activity-grid"><section className="surface-card"><div className="surface-head"><div><p className="eyebrow">Audit trail</p><h2>Handoff history</h2></div><History size={21} /></div>{handoffs.length || failovers.length ? <div className="timeline-list">{handoffs.map((handoff) => <article key={handoff.id}><ProviderMark provider={handoff.target} /><span><strong>Continued in {PROVIDERS[handoff.target].name}</strong><small>{handoff.mode} handoff · Capsule v{handoff.snapshotVersion}</small></span><time>{formatRelative(handoff.createdAt)}</time></article>)}{failovers.map((failover) => <article key={failover.id}><Zap size={18} /><span><strong>API failover: {PROVIDERS[failover.from]?.name || failover.from} → {PROVIDERS[failover.to]?.name || failover.to}</strong><small>{failover.reason} · approved Capsule v{failover.snapshotVersion}</small></span><time>{formatRelative(failover.createdAt)}</time></article>)}</div> : <EmptyState icon={<ArrowRight size={21} />} title="No handoffs yet" copy="Choose a model from the Continue In panel to create your first audited handoff." />}</section><section className="surface-card"><div className="surface-head"><div><p className="eyebrow">Recoverable memory</p><h2>Capsule versions</h2></div><Clock3 size={21} /></div>{versions.length ? <div className="version-list">{versions.map((snapshot) => <article key={snapshot.version}><span className="version-number">v{snapshot.version}</span><span><strong>{snapshot.state.currentTask}</strong><small>{snapshot.createdAt ? formatRelative(snapshot.createdAt) : "Saved"} · {snapshot.sourceMessageCount ?? 0} source messages</small></span><div className="version-actions"><button onClick={() => onPreview(snapshot)}>Preview</button><button onClick={() => onRestore(snapshot)}>Restore as new version</button></div></article>)}</div> : <EmptyState icon={<Clock3 size={21} />} title="No saved versions" copy="Edit and save the capsule to start version history." />}</section></div>; }
 function EmptyState({ icon, title, copy }: { icon: React.ReactNode; title: string; copy: string }) { return <div className="empty-state"><span>{icon}</span><h3>{title}</h3><p>{copy}</p></div>; }
 
-function SettingsWorkspace(props: { providers: ProviderStatus[]; folder: FolderSummary; messages: RelayMessage[]; privacy: typeof DEFAULT_PRIVACY; apiComposer: string; sending: boolean; automation: AutomationSettings; onboarding: { installed: boolean; linked: boolean; saved: boolean; continued: boolean }; onPrivacy: (key: keyof typeof DEFAULT_PRIVACY, value: boolean) => void; onConnections: () => void; onToggleFallback: (value: boolean) => void; onAutomation: (next: Partial<AutomationSettings>) => void; onComposer: (value: string) => void; onSend: (event: React.FormEvent) => void; onExport: () => void; onDeleteAll: () => void; onCopyInstruction: () => void }) {
+function SettingsWorkspace(props: { providers: ProviderStatus[]; folder: FolderSummary; messages: RelayMessage[]; privacy: CapsulePrivacy; apiComposer: string; sending: boolean; automation: AutomationSettings; onboarding: { installed: boolean; linked: boolean; saved: boolean; continued: boolean }; onPrivacy: (key: keyof CapsulePrivacy, value: boolean) => void; onConnections: () => void; onToggleFallback: (value: boolean) => void; onAutomation: (next: Partial<AutomationSettings>) => void; onComposer: (value: string) => void; onSend: (event: React.FormEvent) => void; onExport: () => void; onDeleteAll: () => void; onCopyInstruction: () => void }) {
   const connected = props.providers.filter((provider) => provider.connected).length;
-  const privacyRows: Array<[keyof typeof DEFAULT_PRIVACY, string]> = [["includeDecisions", "Include decisions"], ["includeConstraints", "Include constraints"], ["includeArtifacts", "Include artifacts and sources"], ["excludeCode", "Exclude fenced code"]];
+  const privacyRows: Array<[keyof CapsulePrivacy, string]> = [["includeDecisions", "Include decisions"], ["includeConstraints", "Include constraints"], ["includeArtifacts", "Include artifacts and sources"], ["excludeCode", "Exclude fenced code"]];
   return <div className="settings-grid"><section className="surface-card mode-card featured"><div className="surface-head"><div><p className="eyebrow">Free default</p><h2>Browser Bridge</h2></div><AppWindow size={22} /></div><p>Use the AI subscriptions and free accounts you already have. Solvane copies a reviewed capsule, opens the target model, and the extension can insert it for you.</p><div className="mode-actions"><a className="primary-button" href="/solvane-extension.zip" download><AppWindow size={15} /> Download extension</a><button className="secondary-action" onClick={props.onExport}><Code2 size={15} /> Export for coding agents</button></div><div className="mode-facts"><span><Check size={13} /> No provider API keys</span><span><Check size={13} /> Claude, Gemini, ChatGPT, Perplexity</span><span><Check size={13} /> Manual paste fallback</span></div></section><section className="surface-card mode-card"><div className="surface-head"><div><p className="eyebrow">Serious developer mode</p><h2>API Automation</h2></div><Code2 size={22} /></div><p>Server-side provider routing, automatic fallback, citations, and durable responses. Bring your own keys or add managed usage later.</p><div className="automation-status"><span><KeyRound size={15} /> {connected}/4 provider APIs connected</span><button onClick={props.onConnections}>Manage keys</button></div><label className="setting-toggle"><span><strong>Automatic API fallback</strong><small>Try the next connected API after an eligible failure.</small></span><input type="checkbox" checked={props.folder.autoFallback} onChange={(event) => props.onToggleFallback(event.target.checked)} /><i /></label></section><section className="surface-card privacy-card"><div className="surface-head"><div><p className="eyebrow">This browser</p><h2>Privacy controls</h2></div><ShieldCheck size={22} /></div>{privacyRows.map(([key, label]) => <label className="setting-toggle compact-setting" key={key}><span><strong>{label}</strong></span><input type="checkbox" checked={props.privacy[key]} onChange={(event) => props.onPrivacy(key, event.target.checked)} /><i /></label>)}</section><section className="surface-card api-console"><div className="surface-head"><div><p className="eyebrow">Developer test surface</p><h2>API relay console</h2></div><Zap size={22} /></div>{props.messages.length ? <div className="api-message-list">{props.messages.slice(-4).map((message) => <article className={message.role} key={message.id}><span>{message.role === "assistant" && message.provider ? PROVIDERS[message.provider].name : "You"}</span><p>{message.content}</p></article>)}</div> : <p className="empty-note">No API relay messages in this project yet.</p>}<form onSubmit={props.onSend}><textarea value={props.apiComposer} onChange={(event) => props.onComposer(event.target.value)} placeholder={connected ? "Send through your ordered provider APIs…" : "Connect an API key to test automated relay"} rows={4} /><button className="primary-button" disabled={!props.apiComposer.trim() || props.sending}>{props.sending ? <LoaderCircle className="spin" size={15} /> : <Send size={15} />} Run API relay</button></form></section></div>;
 }
 

@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import {
   applyCheckpointPatch,
+  buildCapsulePrompt,
   compressCheckpointPatch,
   diffCheckpoint,
   estimatePatchTokens,
@@ -11,6 +12,7 @@ import {
   parseSolvaneUpdateBlock,
   pinsAfterReview,
   pinsForManualEdit,
+  PROJECT_INSTRUCTION,
   redactSecrets,
   validateCheckpointPatch,
   type CheckpointPatch,
@@ -131,6 +133,27 @@ describe("checkpoint schema and merge rules", () => {
     const huge: CheckpointPatch = { ...cleanPatch, decisions_add: Array.from({ length: 10 }, (_, index) => `Decision ${index} ${"long ".repeat(60)}`) };
     const compressed = compressCheckpointPatch(huge, 120);
     assert.ok(estimatePatchTokens(compressed) <= 120);
+  });
+});
+
+describe("capsule prompt", () => {
+  const project = normalizeSnapshot({ ...base, completed: ["Built ```js\nlogin()\n``` flow"], artifacts: ["src/app.ts"], sources: ["https://example.com/spec"] });
+
+  it("is readable text with real line breaks, the project name and the update-block instruction", () => {
+    const prompt = buildCapsulePrompt({ projectName: "Project X", state: project });
+    assert.ok(prompt.startsWith("SOLVANE CONTINUITY CAPSULE\n\nProject: Project X\n\nObjective: Ship Solvane"));
+    assert.match(prompt, /Decisions:\n- Keep review human-controlled/);
+    assert.match(prompt, /NEXT STEP: Write the checkpoint tests/);
+    assert.ok(prompt.endsWith(PROJECT_INSTRUCTION));
+    assert.ok(!prompt.includes("\\n"), "no literal backslash-n sequences");
+    assert.ok(!buildCapsulePrompt({ state: project }).includes("Project:"));
+  });
+
+  it("applies every privacy choice", () => {
+    const prompt = buildCapsulePrompt({ state: project, privacy: { includeDecisions: false, includeConstraints: false, includeArtifacts: false, excludeCode: true } });
+    assert.doesNotMatch(prompt, /Decisions:|Constraints:|Artifacts:|Sources:/);
+    assert.doesNotMatch(prompt, /login\(\)/);
+    assert.match(prompt, /Built \[code intentionally excluded\] flow/);
   });
 });
 

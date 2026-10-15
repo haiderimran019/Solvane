@@ -2,7 +2,7 @@
 (() => { const exports = {};
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.CHECKPOINT_RESPONSE_SCHEMA = exports.PROJECT_INSTRUCTION = exports.DEFAULT_CHECKPOINT_TOKEN_BUDGET = exports.CHECKPOINT_SCHEMA_VERSION = void 0;
+exports.CHECKPOINT_RESPONSE_SCHEMA = exports.DEFAULT_CAPSULE_PRIVACY = exports.PROJECT_INSTRUCTION = exports.DEFAULT_CHECKPOINT_TOKEN_BUDGET = exports.CHECKPOINT_SCHEMA_VERSION = void 0;
 exports.validateCheckpointPatch = validateCheckpointPatch;
 exports.parseSolvaneUpdateBlock = parseSolvaneUpdateBlock;
 exports.redactSecrets = redactSecrets;
@@ -19,6 +19,7 @@ exports.compressCheckpointPatch = compressCheckpointPatch;
 exports.estimatePatchTokens = estimatePatchTokens;
 exports.capsuleBudgetRemovals = capsuleBudgetRemovals;
 exports.fitCapsuleBudget = fitCapsuleBudget;
+exports.buildCapsulePrompt = buildCapsulePrompt;
 exports.CHECKPOINT_SCHEMA_VERSION = 1;
 exports.DEFAULT_CHECKPOINT_TOKEN_BUDGET = 1_500;
 const LIST_LIMIT = 10;
@@ -408,6 +409,30 @@ function fitCapsuleBudget(state, pinned, budget = 1500) {
     return next;
 }
 exports.PROJECT_INSTRUCTION = `After meaningful progress, output a complete update block using only explicit project facts, with no secrets. Keep next_step to one concrete action. Put replacements in changes; include a verbatim source_excerpt for each replacement. Never overwrite user-pinned facts. Use this exact format:\n<<<SOLVANE_UPDATE v1\n{"decisions_add":[],"done_add":[],"open_questions_add":[],"open_questions_resolve":[],"constraints_add":[],"next_step":"","changes":[]}\nSOLVANE_UPDATE>>>`;
+exports.DEFAULT_CAPSULE_PRIVACY = { includeDecisions: true, includeConstraints: true, includeArtifacts: true, excludeCode: false };
+/** The one handoff text that the dashboard, the extension and handoff.md all send, with the person's privacy choices applied. */
+function buildCapsulePrompt(input) {
+    const privacy = { ...exports.DEFAULT_CAPSULE_PRIVACY, ...(input.privacy ?? {}) };
+    const { state } = input;
+    const clean = (value) => (privacy.excludeCode ? value.replace(/```[\s\S]*?```/g, "[code intentionally excluded]") : value);
+    const section = (title, items) => (items.length ? [`${title}:\n${items.map((item) => `- ${clean(item)}`).join("\n")}`] : []);
+    return [
+        "SOLVANE CONTINUITY CAPSULE",
+        ...(input.projectName ? [`Project: ${input.projectName}`] : []),
+        `Objective: ${clean(state.objective)}`,
+        `Current task: ${clean(state.currentTask)}`,
+        ...(privacy.includeDecisions ? section("Decisions", state.decisions) : []),
+        ...(privacy.includeConstraints ? section("Constraints", state.constraints) : []),
+        ...section("Completed", state.completed),
+        ...section("Open questions", state.openQuestions),
+        ...section("Do not repeat", state.doNotRepeat),
+        ...(privacy.includeArtifacts ? [...section("Artifacts", state.artifacts), ...section("Sources", state.sources)] : []),
+        `NEXT STEP: ${clean(state.nextAction)}`,
+        "Continue from this state. Do not claim access to hidden reasoning or missing chat history. Ask only for information that truly blocks the next step.",
+        "First restate the goal, current task and next step to confirm understanding, then continue.",
+        exports.PROJECT_INSTRUCTION,
+    ].join("\n\n");
+}
 exports.CHECKPOINT_RESPONSE_SCHEMA = {
     type: "object", additionalProperties: false,
     required: ["decisions_add", "done_add", "open_questions_add", "open_questions_resolve", "constraints_add", "next_step", "changes"],

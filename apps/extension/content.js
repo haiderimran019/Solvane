@@ -230,9 +230,10 @@
     review.querySelectorAll("[data-accept]").forEach((button) => button.addEventListener("click", () => { state.accepts.add(button.dataset.accept); state.rejects.delete(button.dataset.accept); renderReview(); })); review.querySelectorAll("[data-reject]").forEach((button) => button.addEventListener("click", () => { state.accepts.delete(button.dataset.reject); state.rejects.add(button.dataset.reject); renderReview(); })); review.querySelector("#sv-accept-additions")?.addEventListener("click", () => { diff.filter((item) => item.kind === "added").forEach((item) => { state.accepts.add(item.key); state.rejects.delete(item.key); }); renderReview(); });
   }
 
+  // Same builder as the dashboard, so both routes send identical text with the dashboard's privacy choices.
   function buildCapsule(snapshot) {
-    const value = snapshot?.state || snapshot;
-    return "SOLVANE CONTINUITY CAPSULE\\n" + JSON.stringify(value, null, 2) + "\\nTreat this as explicit user-approved project state. First restate the goal, current task and next step. Ask if a material fact is missing, then continue the next step.\\n" + window.SolvaneCore.PROJECT_INSTRUCTION;
+    const projectName = state.projects.find((project) => project.id === state.binding)?.name;
+    return window.SolvaneCore.buildCapsulePrompt({ projectName, state: snapshot?.state || snapshot, privacy: state.automation?.privacy });
   }
 
   async function handoff(target, snapshot, openedWindow = null) {
