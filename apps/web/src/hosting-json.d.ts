@@ -1,4 +1,4 @@
 declare module "*hosting.json" {
-  const value: any;
+  const value: Record<string, unknown>;
   export default value;
 }
