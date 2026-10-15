@@ -1,5 +1,19 @@
 # Solvane pilot test report
 
+## Code health (Phase 4, #11) — 16 October 2026
+
+- **Removed scaffolding the app never used:**
+  - the 61 shadcn UI components, plus the `use-mobile` hook, the `cn` helper and `components.json` that only they used;
+  - the connector-error template component;
+  - the vendored shadcn stylesheet;
+  - `examples/d1`;
+  - three Next.js template icons;
+  - the committed Vite dependency cache (`.vite/`, now git-ignored).
+- **Removed 19 npm dependencies used only by those files**, which drops 169 installed packages. Runtime dependencies are now `next`, `react`, `react-dom`, `drizzle-orm`, `lucide-react` and `zod`; `zod` is kept for the Sites connector runtime. The connector and Sites build files stay because the Sites hosting runtime uses them.
+- **Split the dashboard.** `app/relay-dashboard.tsx` (884 lines) keeps the state and actions. Its 44 view components, types and helpers moved to `app/_dashboard/` (the underscore keeps the folder out of routing). All 45 declarations are byte-identical to before; only `export` and one relative import path changed. The result type-checks cleanly with `--noUnusedLocals`.
+
+Verified: TypeScript, ESLint, every test suite and the production build pass. In the running dashboard, every view, the handoff dialog and the profile panel render with no console errors or failed requests.
+
 ## API mode hygiene (Phase 4, #10) — 16 October 2026
 
 - **Current default models (checked against provider docs today):**

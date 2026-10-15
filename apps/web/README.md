@@ -31,7 +31,7 @@ Production values belong in Sites runtime environment variables, never source co
 
 ## Main surfaces
 
-- `app/relay-dashboard.tsx` — authenticated product dashboard.
+- `app/relay-dashboard.tsx` — dashboard state and actions. Its views live in `app/_dashboard/` (`home`, `memory`, `checkpoint`, `activity`, `settings`, `dialogs`, `account`, and `shared` types and helpers).
 - `app/api/bootstrap` — account-scoped folders and connection status.
 - `app/api/folders` — folder creation and settings.
 - `app/api/chat` — provider routing, fallback, persistence, and citations.
