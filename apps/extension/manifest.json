@@ -1,0 +1,51 @@
+{
+  "manifest_version": 3,
+  "name": "Solvane Browser Bridge",
+  "version": "0.4.1",
+  "description": "Save reviewed project progress in Claude and continue in ChatGPT without re-explaining. Reads on click; never presses Send.",
+  "permissions": [
+    "storage",
+    "clipboardWrite"
+  ],
+  "background": {
+    "service_worker": "background.js"
+  },
+  "options_ui": {
+    "page": "options.html",
+    "open_in_tab": true
+  },
+  "host_permissions": [
+    "https://chatgpt.com/*",
+    "https://claude.ai/*",
+    "https://gemini.google.com/*",
+    "https://www.perplexity.ai/*",
+    "https://solvane.rareyew64.chatgpt.site/*",
+    "http://127.0.0.1:5173/*"
+  ],
+  "content_scripts": [
+    {
+      "matches": [
+        "https://chatgpt.com/*",
+        "https://claude.ai/*",
+        "https://gemini.google.com/*",
+        "https://www.perplexity.ai/*"
+      ],
+      "js": [
+        "provider-config.js",
+        "checkpoint-core.js",
+        "content.js"
+      ],
+      "run_at": "document_idle"
+    },
+    {
+      "matches": [
+        "https://solvane.rareyew64.chatgpt.site/*",
+        "http://127.0.0.1:5173/*"
+      ],
+      "js": [
+        "app-bridge.js"
+      ],
+      "run_at": "document_idle"
+    }
+  ]
+}

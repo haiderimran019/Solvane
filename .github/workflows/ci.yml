@@ -1,0 +1,29 @@
+name: Solvane acceptance checks
+on:
+  push:
+  pull_request:
+permissions:
+  contents: read
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: apps/web
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: apps/web/package-lock.json
+      - run: npm ci
+      - run: npm run build:extension
+      - run: npm run test:checkpoint
+      - run: npm run test:automation
+      - run: npm run test:engine
+      - run: npm run test:providers
+      - run: npm run test:extension
+      - run: npx tsc --noEmit
+      - run: npm run lint
+      - run: npm run build

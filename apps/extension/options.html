@@ -1,0 +1,114 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width,initial-scale=1">
+    <title>Solvane Browser Bridge settings</title>
+    <style>
+      * { box-sizing: border-box; }
+      body {
+        margin: 0;
+        padding: 36px;
+        min-height: 100vh;
+        background: radial-gradient(circle at 90% 10%, #dff7ef, transparent 32%), #eef1ee;
+        color: #17201d;
+        font: 14px/1.6 "Manrope", "SF Pro Display", Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      }
+      main {
+        width: min(720px, 100%);
+        margin: auto;
+        padding: 32px;
+        border: 1px solid #dce3de;
+        border-radius: 28px;
+        background: #fff;
+        box-shadow: 0 24px 70px rgba(28, 48, 40, .11);
+      }
+      .brand { display: flex; align-items: center; gap: 12px; margin-bottom: 26px; }
+      .mark {
+        width: 42px;
+        height: 42px;
+        display: grid;
+        place-items: center;
+        border-radius: 14px;
+        color: #fff;
+        background: linear-gradient(145deg, #45d8b4, #1db18b);
+        font-size: 20px;
+        box-shadow: 0 10px 24px rgba(29, 177, 139, .23);
+      }
+      h1 { margin: 0; font-size: 28px; letter-spacing: -.04em; }
+      p { margin: 10px 0 24px; color: #68766f; }
+      .row {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 20px;
+        padding: 18px 0;
+        border-top: 1px solid #e5eae7;
+      }
+      label { font-weight: 750; }
+      small { display: block; margin-top: 3px; color: #7f8b85; font-weight: 500; }
+      input[type="checkbox"] { width: 20px; height: 20px; accent-color: #20b38d; }
+      select {
+        min-height: 42px;
+        padding: 0 11px;
+        border: 1px solid #d7dfda;
+        border-radius: 12px;
+        background: #f8faf8;
+        color: #26332e;
+        font: inherit;
+      }
+      .save {
+        width: 100%;
+        margin-top: 20px;
+        padding: 13px 17px;
+        border: 0;
+        border-radius: 14px;
+        background: linear-gradient(145deg, #3bd2ac, #1fb58f);
+        color: #fff;
+        font: 800 13px "Manrope", "SF Pro Display", Inter, system-ui, sans-serif;
+        box-shadow: 0 10px 22px rgba(27, 168, 132, .2);
+        cursor: pointer;
+      }
+      .save:hover { transform: translateY(-1px); }
+      .notice { margin-top: 14px; color: #16735d; font-weight: 700; }
+      @media (max-width: 600px) {
+        body { padding: 14px; }
+        main { padding: 22px; border-radius: 22px; }
+        .row { align-items: flex-start; flex-direction: column; }
+      }
+    </style>
+  </head>
+  <body>
+    <main>
+      <div class="brand">
+        <span class="mark">✦</span>
+        <div>
+          <h1>Solvane Browser Bridge</h1>
+          <small>Quiet project continuity across AI tools</small>
+        </div>
+      </div>
+      <p>Automation stays off until you enable it. When enabled, Solvane reads only the latest visible assistant message to look for a complete update block or a usage-limit notice. It never reads cookies, passwords, hidden reasoning, or chat content for diagnostics.</p>
+      <div class="row">
+        <label>Detect update blocks<small>Pulse “Update ready — Save” only after the model finishes responding.</small></label>
+        <input id="autoDetect" type="checkbox">
+      </div>
+      <div class="row">
+        <label>Save reminders<small>One gentle reminder after about 30 minutes or 15 messages.</small></label>
+        <input id="reminders" type="checkbox" checked>
+      </div>
+      <div class="row">
+        <label>Continue in by default<small>ChatGPT is the focused v1 path. You can still choose another provider.</small></label>
+        <select id="defaultHandoff">
+          <option value="openai">ChatGPT</option>
+          <option value="last">Last used</option>
+          <option value="claude">Claude</option>
+          <option value="gemini">Gemini</option>
+          <option value="perplexity">Perplexity</option>
+        </select>
+      </div>
+      <button class="save" id="save">Save browser companion settings</button>
+      <div class="notice" id="notice" role="status"></div>
+    </main>
+    <script src="options.js"></script>
+  </body>
+</html>
