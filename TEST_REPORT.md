@@ -1,5 +1,23 @@
 # Solvane pilot test report
 
+## Save-logic fixes — 15 October 2026
+
+Three defects in save → review → continue were reproduced against a local build and fixed:
+
+1. **Pins froze fields.** Undo, Restore and every manual edit pinned whole fields permanently, there was no unpin, and a pinned field silently ignored changes the user accepted ("Saved" with nothing changed). Pins are now per item (list items, plus goal/current task/next step). Only manual edits and Edit & pin create them. Undo and Restore copy an earlier version with that version's pins. A pinned item is never pre-selected, and accepting a change to it is applied and releases the pin. Project memory shows a pin toggle on every item. Older whole-field pins are converted to pins on the items present at read time.
+2. **A list change wiped the list.** A `changes` entry on a list field replaced the entire list and split the new text at commas. It now replaces only the matching item. If nothing matches, the value is offered as an unselected new item and nothing is deleted.
+3. **Re-saving after Undo was ignored.** Save idempotency was keyed on the pasted text, so saving the same paste after an Undo answered "Already saved" with an older version. It is now keyed on the review (text, base version, decisions and edits), so retries still replay. A review that accepts nothing creates no new version.
+
+Undo and Restore send `restoreVersion`; bare-state Undo from extension 0.4.1 still works and pins nothing. The extension is now 0.4.2.
+
+| Gate | Result |
+| --- | --- |
+| Checkpoint / engine / automation / providers | 28 / 6 / 10 / 2 passed |
+| New save-route tests (`npm run test:save`) | 6 passed; all 6 fail against the previous code |
+| Extension contract | Passed |
+| Production build | Passed |
+| TypeScript / ESLint | No new errors. The existing `hosting.json` typing error and 3 lint errors remain (separate fix). |
+
 ## Focused continuity UI — 15 October 2026
 
 The primary product surface was rebuilt around the agreed Claude → Solvane → ChatGPT flow. The previous three-column operations dashboard is no longer the default experience.
@@ -115,7 +133,7 @@ The browser fixture found a real over-escaped update-block regex bug. It was fix
 
 Processing reservations are atomic and conservative. They enforce per-user/per-IP burst limits, per-user daily calls/input, and a configurable daily reserved cost. Reservations live in the account event table; account deletion clears that table, so provider-side billing caps and the closed pilot access policy remain important against deliberate quota-reset abuse. Actual provider billing depends on configured model/prices.
 
-Redaction is pattern-based. It covers common API keys, bearer tokens, .env-style lines, JWTs and multiline private keys; it cannot identify every private fact. Pinned protection is currently at capsule-field granularity. Folder adoption is a bounded, reviewed project map, not an automatic whole-repository watcher.
+Redaction is pattern-based. It covers common API keys, bearer tokens, .env-style lines, JWTs and multiline private keys; it cannot identify every private fact. Pins protect individual list items and the goal, current task and next step (see the save-logic section above). Folder adoption is a bounded, reviewed project map, not an automatic whole-repository watcher.
 
 ## Hosted publication
 

@@ -18,6 +18,7 @@
     "build:extension": "node scripts/build-extension.mjs",
     "test:engine": "node --experimental-strip-types --test tests/checkpoint-engine.test.ts",
     "test:providers": "node --test tests/provider-failover.test.mjs",
+    "test:save": "node --test tests/save-routes.test.mjs",
     "test": "node --test",
     "pretest": "node -e \"const fs=require('fs'); if(!fs.existsSync('.openai')) fs.mkdirSync('.openai'); if(!fs.existsSync('.openai/hosting.json')) fs.writeFileSync('.openai/hosting.json', '{}');\"",
     "prebuild": "node -e \"const fs=require('fs'); if(!fs.existsSync('.openai')) fs.mkdirSync('.openai'); if(!fs.existsSync('.openai/hosting.json')) fs.writeFileSync('.openai/hosting.json', '{}');\""

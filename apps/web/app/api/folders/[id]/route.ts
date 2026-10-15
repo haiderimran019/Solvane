@@ -10,6 +10,7 @@ import {
   type RelaySnapshot,
 } from "../../../../lib/product";
 import { apiUser, unauthorized } from "../../../../lib/server";
+import { normalizePins } from "../../../../lib/checkpoint";
 
 type RouteContext = { params: Promise<{ id: string }> };
 
@@ -52,14 +53,13 @@ export async function GET(_: Request, context: RouteContext) {
       citations: JSON.parse(message.citations || "[]"),
     })),
     snapshot: snapshot
-      ? {
-          version: snapshot.version,
-          state: normalizeSnapshot(JSON.parse(snapshot.state) as Partial<RelaySnapshot>),
-          createdAt: snapshot.createdAt,
-          schemaVersion: snapshot.schemaVersion,
-          pinnedFields: (() => { try { return JSON.parse(snapshot.pinnedFields || "[]"); } catch { return []; } })(),
-        }
-      : { version: 0, state: EMPTY_SNAPSHOT, createdAt: null },
+      ? (() => {
+          const state = normalizeSnapshot(JSON.parse(snapshot.state) as Partial<RelaySnapshot>);
+          let pins: unknown = [];
+          try { pins = JSON.parse(snapshot.pinnedFields || "[]"); } catch { pins = []; }
+          return { version: snapshot.version, state, createdAt: snapshot.createdAt, schemaVersion: snapshot.schemaVersion, pinnedFields: normalizePins(pins, state) };
+        })()
+      : { version: 0, state: EMPTY_SNAPSHOT, createdAt: null, pinnedFields: [] },
   });
 }
 

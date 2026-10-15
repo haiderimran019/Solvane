@@ -23,6 +23,7 @@ jobs:
       - run: npm run test:automation
       - run: npm run test:engine
       - run: npm run test:providers
+      - run: npm run test:save
       - run: npm run test:extension
       - run: npx tsc --noEmit || true
       - run: npm run lint

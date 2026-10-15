@@ -886,3 +886,14 @@ body {
   .memory-summary > div { padding-inline: 7px; }
   .memory-summary strong { font-size: 19px; }
 }
+
+/* Pins: what a person wrote stays put until they unpin it. */
+.capsule-list li { display: flex; align-items: flex-start; gap: 6px; }
+.capsule-list li > span { flex: 1; min-width: 0; }
+.pin-toggle { flex: 0 0 auto; width: 24px; height: 24px; margin: -5px -4px -5px auto; display: inline-grid; place-items: center; padding: 0; border: 0; border-radius: 7px; background: transparent; color: #8d9a94; cursor: pointer; opacity: .4; transition: opacity .15s ease, background .15s ease, color .15s ease; }
+.pin-toggle:hover, .pin-toggle:focus-visible, .capsule-list li:hover > .pin-toggle, .capsule-field:hover .pin-toggle { opacity: 1; background: #eaf3ef; }
+.pin-toggle.pinned { opacity: 1; color: var(--signal-deep); }
+.pin-toggle.pinned svg { fill: currentColor; }
+.next-step-block .pin-toggle:hover, .next-step-block .pin-toggle:focus-visible { background: #2a2f27; }
+.next-step-block .pin-toggle.pinned { color: var(--signal); }
+@media (hover: none) { .pin-toggle { opacity: .75; } }

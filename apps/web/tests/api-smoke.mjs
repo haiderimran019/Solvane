@@ -19,7 +19,7 @@ try{
   const commit={folderId,text:wrap(patch),mode:"commit",patch:preview.patch,checkpointHash:preview.checkpointHash,baseVersion:preview.baseVersion,acceptedKeys:selected,editedItems:{[decisionKey]:"Use SQLite for this demo"}};
   r=await api("/api/checkpoint",commit);assert.equal(r.status,200);assert.equal(r.snapshot.version,1);assert.deepEqual(r.snapshot.state.completed,[]);assert.deepEqual(r.snapshot.state.decisions,["Use SQLite for this demo"]);checks++;
   const repeated=await api("/api/checkpoint",commit);assert.equal(repeated.status,200);assert.equal(repeated.idempotent,true);assert.equal(repeated.snapshot.version,1);checks++;
-  const history=await api(`/api/snapshots?folderId=${folderId}`);assert.equal(history.snapshots.length,1);assert.ok(history.snapshots[0].pinnedFields.includes("decisions"));checks++;
+  const history=await api(`/api/snapshots?folderId=${folderId}`);assert.equal(history.snapshots.length,1);assert.ok(history.snapshots[0].pinnedFields.some(pin=>pin.startsWith("decisions#")));checks++;
   for(const target of ["claude","openai","gemini","perplexity"]){r=await api("/api/handoffs",{folderId,target,mode:"browser",snapshotVersion:1});assert.equal(r.status,200);checks++;}
   r=await api("/api/checkpoint",{folderId,text:wrap(patch),mode:"preview"},"POST",{cookie:""});assert.equal(r.status,401);checks++;
   r=await api("/api/checkpoint",{folderId,text:"x".repeat(41000),mode:"preview"});assert.equal(r.status,413);checks++;

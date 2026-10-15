@@ -14,6 +14,8 @@ The floating **Save progress** chip is collapsed by default. Click it (or press 
 
 Review decisions are neutral until the user chooses. Accept and Reject are mutually exclusive, accepted additions may start selected, and a rejected item is never sent as an accepted key.
 
+Pins protect text a person wrote (an Edit & pin, or a manual capsule edit in the dashboard) from automatic changes. A pinned item is never pre-selected in the review; accepting a change to it is an explicit override and is applied. Undo restores the previous version together with that version's pins, and pins nothing new. Since 0.4.2.
+
 Open the extension's **Options** page to opt in to update-block detection and checkpoint reminders. Auto-detection is off by default. When enabled, it reads only the latest stable assistant message, ignores partial streaming text, deduplicates by hash, and can show a best-effort limit banner. A changed provider page simply produces no banner and leaves manual Save available.
 
 The split arrow offers **Save & continue** for Claude, Gemini, ChatGPT, or Perplexity. It saves only after review, copies the approved capsule, opens the official provider URL, and shows an explicit **Insert capsule** action in the target composer. The extension never presses Send. If Solvane auth, a provider selector, or the composer is unavailable, the drawer gives a plain-language paste fallback.

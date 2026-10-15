@@ -10,7 +10,9 @@ import {
   DEFAULT_CHECKPOINT_TOKEN_BUDGET,
   diffCheckpoint,
   estimatePatchTokens,
+  normalizePins,
   parseSolvaneUpdateBlock,
+  pinsAfterReview,
   redactSecrets,
   validateCheckpointPatch,
   type CheckpointPatch,
@@ -27,23 +29,27 @@ type CheckpointPayload = {
   mode?: "preview" | "commit";
   patch?: unknown;
   acceptedKeys?: unknown[];
-  pinnedFields?: unknown[];
   checkpointHash?: string;
   baseVersion?: number;
   tokenBudget?: number;
-  editedItems?: Record<string, string>;
+  editedItems?: unknown;
 };
 
 export function OPTIONS(request: Request) {
   return extensionOptions(request);
 }
 
-function parsePinned(value: unknown): string[] {
-  return Array.isArray(value) ? value.filter((item): item is string => typeof item === "string").map((item) => item.trim()).filter(Boolean).slice(0, 24) : [];
-}
-
 function parseAccepted(value: unknown): Set<string> {
   return new Set(Array.isArray(value) ? value.filter((item): item is string => typeof item === "string").slice(0, 80) : []);
+}
+
+function parseEdits(value: unknown): Record<string, string> {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return {};
+  return Object.fromEntries(Object.entries(value).filter((entry): entry is [string, string] => typeof entry[1] === "string").slice(0, 80));
+}
+
+async function sha256(value: string) {
+  return Array.from(new Uint8Array(await crypto.subtle.digest("SHA-256", new TextEncoder().encode(value))), (n) => n.toString(16).padStart(2, "0")).join("");
 }
 
 function errorMessage(error: unknown) {
@@ -108,7 +114,7 @@ export async function POST(request: Request) {
   const currentRow = await latestSnapshot(folderId, user.userId);
   const current = snapshotState(currentRow);
   const redacted = redactSecrets(text);
-  const hash = Array.from(new Uint8Array(await crypto.subtle.digest("SHA-256",new TextEncoder().encode(redacted.text))),(n)=>n.toString(16).padStart(2,"0")).join("");
+  const hash = await sha256(redacted.text);
   const block = parseSolvaneUpdateBlock(redacted.text);
   const budget = Math.min(Number(runtimeEnv.CHECKPOINT_TOKEN_BUDGET || 1500), Math.max(300, Number(payload.tokenBudget) || 1500));
   if (!block.ok && block.present) return withExtensionCors(Response.json({ error: block.error || "The SOLVANE_UPDATE block is invalid. Ask the model to output a fresh v1 block." }, { status: 400 }), request);
@@ -128,9 +134,9 @@ export async function POST(request: Request) {
     return withExtensionCors(Response.json({ error: message, ...(error instanceof CheckpointReadError ? { rawPatch: error.rawPatch } : {}) }, { status }), request);
   }
 
-  let storedPinned: unknown = [];
-  try { storedPinned = currentRow?.pinnedFields ? JSON.parse(currentRow.pinnedFields) : []; } catch { storedPinned = []; }
-  const pinnedFields = parsePinned(storedPinned);
+  let storedPins: unknown = [];
+  try { storedPins = currentRow?.pinnedFields ? JSON.parse(currentRow.pinnedFields) : []; } catch { storedPins = []; }
+  const pinnedFields = normalizePins(storedPins, current);
   const diff = diffCheckpoint(current, patch, pinnedFields);
   if (mode === "preview") {
     const defaults=new Set(diff.filter((item)=>item.autoApplicable).map((item)=>item.key));
@@ -141,25 +147,47 @@ export async function POST(request: Request) {
   const validation = validateCheckpointPatch(payload.patch);
   if (!validation.ok) return withExtensionCors(Response.json({ error: "The reviewed checkpoint is no longer valid. Run Save checkpoint again." }, { status: 400 }), request);
   if (payload.checkpointHash && payload.checkpointHash !== hash) return withExtensionCors(Response.json({ error: "This checkpoint changed before saving. Run Save checkpoint again." }, { status: 409 }), request);
-  const [existing] = await db.select().from(snapshots).where(and(eq(snapshots.folderId, folderId), eq(snapshots.userId, user.userId), eq(snapshots.sourceHash, hash))).limit(1);
-  if (existing) return withExtensionCors(Response.json({ idempotent: true, snapshot: { version: existing.version, state: normalizeSnapshot(JSON.parse(existing.state) as Partial<RelaySnapshot>), createdAt: existing.createdAt }, previousState: current, source, redactedCount: redacted.count, diff }), request);
-  if (payload.baseVersion !== undefined && payload.baseVersion !== (currentRow?.version ?? 0)) return withExtensionCors(Response.json({error:"The project changed on another device. Review this checkpoint again."},{status:409}),request);
   const acceptedKeys = parseAccepted(payload.acceptedKeys);
+  const editedItems = parseEdits(payload.editedItems);
+  const baseVersion = typeof payload.baseVersion === "number" ? payload.baseVersion : currentRow?.version ?? 0;
+  // Idempotency covers one review (text + base version + decisions), so a retried request replays,
+  // while saving the same text again after an Undo creates a real new version.
+  const reviewKey = `review:${await sha256(JSON.stringify({ text: hash, baseVersion, accepted: [...acceptedKeys].sort(), edits: Object.entries(editedItems).sort() }))}`;
+  const replay = async () => {
+    const [existing] = await db.select().from(snapshots).where(and(eq(snapshots.folderId, folderId), eq(snapshots.userId, user.userId), eq(snapshots.sourceHash, reviewKey))).limit(1);
+    if (!existing) return null;
+    const state = normalizeSnapshot(JSON.parse(existing.state) as Partial<RelaySnapshot>);
+    let pins: unknown = [];
+    try { pins = JSON.parse(existing.pinnedFields); } catch { pins = []; }
+    return withExtensionCors(Response.json({ idempotent: true, snapshot: { version: existing.version, state, createdAt: existing.createdAt, pinnedFields: normalizePins(pins, state) }, previousVersion: existing.version - 1, previousState: current, source, redactedCount: redacted.count, diff }), request);
+  };
+  const replayed = await replay();
+  if (replayed) return replayed;
+  if (baseVersion !== (currentRow?.version ?? 0)) return withExtensionCors(Response.json({error:"The project changed on another device. Review this checkpoint again."},{status:409}),request);
   let nextState: RelaySnapshot;
+  let nextPinnedFields: string[];
   try {
-    const before=applyCheckpointPatch(current, validation.patch, acceptedKeys, pinnedFields, payload.editedItems);
-    nextState=fitCapsuleBudget(before,pinnedFields,budget);
+    const before=applyCheckpointPatch(current, validation.patch, acceptedKeys, pinnedFields, editedItems);
+    nextPinnedFields=pinsAfterReview(pinnedFields, diff, acceptedKeys, editedItems, before);
+    nextState=fitCapsuleBudget(before,nextPinnedFields,budget);
+    nextPinnedFields=normalizePins(nextPinnedFields,nextState);
     if(capsuleBudgetRemovals(before,nextState).some((item)=>!acceptedKeys.has(item.key))) return withExtensionCors(Response.json({error:"Fitting this capsule requires removing old items. Accept the budget removals in the review, or shorten your edits and review again."},{status:422}),request);
   }
   catch (error) { return withExtensionCors(Response.json({error:(error as Error).message},{status:422}),request); }
+  // Nothing accepted means nothing to save: report the current version instead of creating an identical one.
+  if (JSON.stringify(nextState) === JSON.stringify(current) && JSON.stringify([...nextPinnedFields].sort()) === JSON.stringify([...pinnedFields].sort())) {
+    return withExtensionCors(Response.json({ idempotent: true, unchanged: true, snapshot: { version: currentRow?.version ?? 0, state: current, createdAt: currentRow?.createdAt ?? null, pinnedFields }, previousVersion: null, previousState: current, source, redactedCount: redacted.count, diff }), request);
+  }
   const version = (currentRow?.version ?? 0) + 1;
   const createdAt = new Date().toISOString();
-  const nextPinnedFields = [...new Set([...pinnedFields, ...diff.filter((item) => acceptedKeys.has(item.key) && payload.editedItems?.[item.key]).map((item) => item.field)])];
   try { await db.batch([
-    db.insert(snapshots).values({ id: crypto.randomUUID(), folderId, userId: user.userId, version, schemaVersion: 1, state: JSON.stringify(nextState), pinnedFields: JSON.stringify(nextPinnedFields), sourceHash: hash, sourceMessageCount: 0, createdAt }),
+    db.insert(snapshots).values({ id: crypto.randomUUID(), folderId, userId: user.userId, version, schemaVersion: 1, state: JSON.stringify(nextState), pinnedFields: JSON.stringify(nextPinnedFields), sourceHash: reviewKey, sourceMessageCount: 0, createdAt }),
     db.insert(events).values({ id: crypto.randomUUID(), folderId, userId: user.userId, type: "checkpoint.saved", data: JSON.stringify({ version, source, hash, redactedCount: redacted.count, acceptedCount: acceptedKeys.size }), createdAt }),
     db.update(folders).set({ updatedAt: createdAt }).where(and(eq(folders.id, folderId), eq(folders.userId, user.userId))),
   ]);
-  } catch { return withExtensionCors(Response.json({error:"Another save arrived at the same time. Review again; your text is still here."},{status:409}),request); }
-  return withExtensionCors(Response.json({ idempotent: false, snapshot: { version, state: nextState, createdAt }, previousState: current, source, redactedCount: redacted.count, diff }), request);
+  } catch {
+    // A concurrent copy of this exact review may have won the race; replay it instead of failing.
+    return (await replay()) ?? withExtensionCors(Response.json({error:"Another save arrived at the same time. Review again; your text is still here."},{status:409}),request);
+  }
+  return withExtensionCors(Response.json({ idempotent: false, snapshot: { version, state: nextState, createdAt, pinnedFields: nextPinnedFields }, previousVersion: currentRow?.version ?? 0, previousState: current, source, redactedCount: redacted.count, diff }), request);
 }
