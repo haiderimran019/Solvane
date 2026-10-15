@@ -44,6 +44,10 @@
   ],
   "exclude": [
     "node_modules",
-    "examples"
+    "examples",
+    "playwright.config.ts",
+    "tests/e2e",
+    "**/e2e/**",
+    "**/*.spec.ts"
   ]
 }
