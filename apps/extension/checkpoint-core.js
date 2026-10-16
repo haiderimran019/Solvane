@@ -2,11 +2,16 @@
 (() => { const exports = {};
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.CHECKPOINT_RESPONSE_SCHEMA = exports.PROJECT_INSTRUCTION = exports.DEFAULT_CHECKPOINT_TOKEN_BUDGET = exports.CHECKPOINT_SCHEMA_VERSION = void 0;
+exports.CHECKPOINT_RESPONSE_SCHEMA = exports.DEFAULT_CAPSULE_PRIVACY = exports.PROJECT_INSTRUCTION = exports.DEFAULT_CHECKPOINT_TOKEN_BUDGET = exports.CHECKPOINT_SCHEMA_VERSION = void 0;
 exports.validateCheckpointPatch = validateCheckpointPatch;
 exports.parseSolvaneUpdateBlock = parseSolvaneUpdateBlock;
 exports.redactSecrets = redactSecrets;
 exports.checkpointTextHash = checkpointTextHash;
+exports.itemPinKey = itemPinKey;
+exports.isPinned = isPinned;
+exports.normalizePins = normalizePins;
+exports.pinsForManualEdit = pinsForManualEdit;
+exports.pinsAfterReview = pinsAfterReview;
 exports.checkpointFieldLabel = checkpointFieldLabel;
 exports.diffCheckpoint = diffCheckpoint;
 exports.applyCheckpointPatch = applyCheckpointPatch;
@@ -14,10 +19,14 @@ exports.compressCheckpointPatch = compressCheckpointPatch;
 exports.estimatePatchTokens = estimatePatchTokens;
 exports.capsuleBudgetRemovals = capsuleBudgetRemovals;
 exports.fitCapsuleBudget = fitCapsuleBudget;
+exports.buildCapsulePrompt = buildCapsulePrompt;
 exports.CHECKPOINT_SCHEMA_VERSION = 1;
 exports.DEFAULT_CHECKPOINT_TOKEN_BUDGET = 1_500;
 const LIST_LIMIT = 10;
 const ITEM_LIMIT = 240;
+const SCALAR_FIELDS = ["objective", "currentTask", "nextAction"];
+// Ordered by trimming priority: the capsule budget drops old completed work first.
+const LIST_FIELDS = ["completed", "doNotRepeat", "openQuestions", "artifacts", "sources", "decisions", "constraints"];
 const VALID_FIELDS = new Set([
     "objective",
     "currentTask",
@@ -146,6 +155,80 @@ function additionKey(field, text) {
 function resolveKey(text) {
     return `remove:openQuestions:${hashKey(text.toLocaleLowerCase())}`;
 }
+function isListField(field) {
+    return LIST_FIELDS.includes(field);
+}
+function sameText(left, right) {
+    return left.trim().toLocaleLowerCase() === right.trim().toLocaleLowerCase();
+}
+function cleanEdit(value) {
+    return typeof value === "string" ? redactSecrets(value).text.trim().slice(0, 300) : "";
+}
+/**
+ * Pins protect what a person wrote from automatic changes. A scalar field pins by name;
+ * a list item pins as `field#hash`. A bare list-field name is a legacy whole-field pin.
+ */
+function itemPinKey(field, text) {
+    return `${field}#${hashKey(text.trim().toLocaleLowerCase())}`;
+}
+function isPinned(pins, field, text) {
+    if (pins.includes(field))
+        return true;
+    return text !== undefined && isListField(field) && pins.includes(itemPinKey(field, text));
+}
+/** Turns legacy whole-field list pins into pins on the items present now, and drops pins whose item is gone. */
+function normalizePins(pins, state) {
+    const result = new Set();
+    for (const pin of Array.isArray(pins) ? pins : []) {
+        if (typeof pin !== "string")
+            continue;
+        if (SCALAR_FIELDS.includes(pin))
+            result.add(pin);
+        else if (isListField(pin))
+            state[pin].forEach((item) => result.add(itemPinKey(pin, item)));
+        else if (LIST_FIELDS.some((field) => state[field].some((item) => itemPinKey(field, item) === pin)))
+            result.add(pin);
+    }
+    return [...result];
+}
+/** Pins only what a person changed by hand: edited scalar fields and new or reworded list items. */
+function pinsForManualEdit(before, after) {
+    const pins = SCALAR_FIELDS.filter((field) => after[field] !== before[field]);
+    for (const field of LIST_FIELDS) {
+        for (const item of after[field])
+            if (!before[field].some((old) => sameText(old, item)))
+                pins.push(itemPinKey(field, item));
+    }
+    return pins;
+}
+/** Pins after a reviewed save: "Edit & pin" pins the edited text; accepting a model value over a pinned field releases that pin. */
+function pinsAfterReview(pins, diff, acceptedKeys, editedItems, after) {
+    const next = new Set(pins);
+    for (const item of diff) {
+        if (!acceptedKeys.has(item.key))
+            continue;
+        const edited = cleanEdit(editedItems[item.key]);
+        if (isListField(item.field)) {
+            if (edited && item.kind !== "removed")
+                next.add(itemPinKey(item.field, edited));
+        }
+        else if (edited)
+            next.add(item.field);
+        else
+            next.delete(item.field);
+    }
+    return normalizePins([...next], after);
+}
+function findListItem(items, text) {
+    if (!text.trim())
+        return undefined;
+    return items.find((item) => sameText(item, text)) ?? items.find((item) => nearDuplicateFact(item, text));
+}
+function replaceItem(items, from, to) {
+    const index = items.findIndex((item) => sameText(item, from));
+    const replaced = index < 0 ? [...items, to] : items.map((item, position) => (position === index ? to : item));
+    return replaced.filter((item, position) => replaced.findIndex((other) => sameText(other, item)) === position);
+}
 function factTokens(value) {
     const stopWords = new Set([
         "a", "an", "and", "are", "be", "been", "being", "decide", "decided", "for", "has", "have",
@@ -207,35 +290,47 @@ function diffCheckpoint(current, patch, pinnedFields = []) {
         else if (additionPriority(candidate.field, candidate.value) > additionPriority(selectedAdditions[duplicateIndex].field, selectedAdditions[duplicateIndex].value))
             selectedAdditions[duplicateIndex] = candidate;
     }
-    const add = (field, value) => {
-        const currentItems = current[field];
-        const values = Array.isArray(currentItems) ? currentItems : [];
-        if (!values.some((item) => item.toLocaleLowerCase() === value.toLocaleLowerCase())) {
-            diff.push({ key: additionKey(field, value), kind: "added", field, text: value, autoApplicable: !pinnedFields.includes(field), pinned: pinnedFields.includes(field) });
+    // Additions never overwrite anything, so they stay pre-selected even beside pinned items.
+    for (const { field, value } of selectedAdditions) {
+        if (isListField(field) && !current[field].some((item) => sameText(item, value))) {
+            diff.push({ key: additionKey(field, value), kind: "added", field, text: value, autoApplicable: true });
         }
-    };
-    for (const { field, value } of selectedAdditions)
-        add(field, value);
-    const changedFields = new Set();
-    patch.changes.forEach((change) => {
+    }
+    const seen = new Set(diff.map((item) => item.key));
+    for (const change of patch.changes) {
         const field = change.field === "next_step" ? "nextAction" : change.field;
-        if (changedFields.has(field))
-            return;
-        const currentValue = current[field];
-        const actual = Array.isArray(currentValue) ? currentValue.join(", ") : String(currentValue ?? "");
-        if (change.to && change.to !== actual) {
-            changedFields.add(field);
-            diff.push({ key: `change:${field}`, kind: "changed", field, text: checkpointFieldLabel(field), from: change.from || actual, to: change.to, autoApplicable: false, contradiction: Boolean(change.from && actual !== change.from), sourceExcerpt: change.source_excerpt, pinned: pinnedFields.includes(field) });
+        if (!change.to)
+            continue;
+        if (isListField(field)) {
+            // A list change replaces the one item it names, never the whole list.
+            const target = findListItem(current[field], change.from);
+            if (target ? sameText(target, change.to) : current[field].some((item) => sameText(item, change.to)))
+                continue;
+            const key = target ? `change:${field}:${hashKey(target.toLocaleLowerCase())}` : additionKey(field, change.to);
+            if (seen.has(key))
+                continue;
+            seen.add(key);
+            // With no matching item there is nothing to replace, so the value is offered as an unselected new item.
+            diff.push(target
+                ? { key, kind: "changed", field, text: checkpointFieldLabel(field), from: target, to: change.to, autoApplicable: false, sourceExcerpt: change.source_excerpt, pinned: isPinned(pinnedFields, field, target) }
+                : { key, kind: "added", field, text: change.to, autoApplicable: false, contradiction: Boolean(change.from), sourceExcerpt: change.source_excerpt });
+            continue;
         }
-    });
+        const key = `change:${field}`;
+        const actual = String(current[field] ?? "");
+        if (seen.has(key) || change.to === actual)
+            continue;
+        seen.add(key);
+        diff.push({ key, kind: "changed", field, text: checkpointFieldLabel(field), from: actual, to: change.to, autoApplicable: false, contradiction: Boolean(change.from && actual !== change.from), sourceExcerpt: change.source_excerpt, pinned: pinnedFields.includes(field) });
+    }
     // A source-backed replacement in changes[] wins over next_step so one field never renders twice.
-    if (patch.next_step && patch.next_step !== current.nextAction && !changedFields.has("nextAction")) {
-        diff.push({ key: "change:nextAction", kind: "changed", field: "nextAction", text: checkpointFieldLabel("nextAction"), from: current.nextAction, to: patch.next_step, autoApplicable: false, contradiction: Boolean(current.nextAction && current.nextAction !== patch.next_step && pinnedFields.includes("nextAction")) });
+    if (patch.next_step && patch.next_step !== current.nextAction && !seen.has("change:nextAction")) {
+        diff.push({ key: "change:nextAction", kind: "changed", field: "nextAction", text: checkpointFieldLabel("nextAction"), from: current.nextAction, to: patch.next_step, autoApplicable: false, pinned: pinnedFields.includes("nextAction") });
     }
     for (const value of patch.open_questions_resolve) {
-        if (current.openQuestions.some((item) => item.toLocaleLowerCase() === value.toLocaleLowerCase())) {
-            diff.push({ key: resolveKey(value), kind: "removed", field: "openQuestions", text: value, autoApplicable: false });
-        }
+        const target = current.openQuestions.find((item) => sameText(item, value));
+        if (target)
+            diff.push({ key: resolveKey(value), kind: "removed", field: "openQuestions", text: target, autoApplicable: false, pinned: isPinned(pinnedFields, "openQuestions", target) });
     }
     return diff;
 }
@@ -250,27 +345,21 @@ function addUnique(items, additions) {
 function applyCheckpointPatch(current, patch, acceptedKeys, pinnedFields = [], editedItems = {}) {
     const diff = diffCheckpoint(current, patch, pinnedFields);
     const next = { ...current };
+    // An accepted item is always applied, pinned or not: pins stop automatic changes, not the user's own choice.
     for (const item of diff) {
-        if (!acceptedKeys.has(item.key) || pinnedFields.includes(item.field))
+        if (!acceptedKeys.has(item.key))
             continue;
-        const edited = typeof editedItems[item.key] === "string" ? redactSecrets(editedItems[item.key]).text.trim().slice(0, 300) : undefined;
-        if (item.kind === "added") {
-            const field = item.field;
-            next[field] = addUnique(next[field], [edited || item.text]);
-            continue;
+        const value = cleanEdit(editedItems[item.key]) || (item.kind === "changed" ? item.to ?? "" : item.text);
+        if (!isListField(item.field)) {
+            if (item.kind === "changed" && value)
+                next[item.field] = value;
         }
-        if (item.kind === "removed" && item.field === "openQuestions") {
-            next.openQuestions = next.openQuestions.filter((value) => value.toLocaleLowerCase() !== item.text.toLocaleLowerCase());
-            continue;
-        }
-        if (item.kind !== "changed" || !item.to || pinnedFields.includes(item.field))
-            continue;
-        if (item.field === "objective" || item.field === "currentTask" || item.field === "nextAction") {
-            next[item.field] = edited || item.to;
-        }
-        else if (Array.isArray(next[item.field])) {
-            next[item.field] = (edited || item.to).split(",").map((value) => value.trim()).filter(Boolean);
-        }
+        else if (item.kind === "added")
+            next[item.field] = addUnique(next[item.field], [value]);
+        else if (item.kind === "changed" && item.from && value)
+            next[item.field] = replaceItem(next[item.field], item.from, value);
+        else if (item.kind === "removed")
+            next[item.field] = next[item.field].filter((existing) => !sameText(existing, item.text));
     }
     return next;
 }
@@ -300,22 +389,50 @@ function estimatePatchTokens(patch) {
 }
 /** Budget the resulting capsule, not merely the incoming patch. Pinned fields survive intact. */
 function capsuleBudgetRemovals(before, after) {
-    return ["completed", "doNotRepeat", "openQuestions", "artifacts", "sources", "decisions", "constraints"].flatMap((field) => before[field].filter((item) => !after[field].includes(item)).map((text) => ({ key: `budget:${field}:${hashKey(text)}`, kind: "removed", field, text: `${text} (trimmed to fit capsule budget)`, autoApplicable: false })));
+    return LIST_FIELDS.flatMap((field) => before[field].filter((item) => !after[field].includes(item)).map((text) => ({ key: `budget:${field}:${hashKey(text)}`, kind: "removed", field, text: `${text} (trimmed to fit capsule budget)`, autoApplicable: false })));
 }
 function fitCapsuleBudget(state, pinned, budget = 1500) {
     const next = structuredClone(state);
     const size = () => Math.ceil(JSON.stringify(next).length / 4);
-    for (const field of ["completed", "doNotRepeat", "openQuestions", "artifacts", "sources", "decisions", "constraints"]) {
-        if (pinned.includes(field))
-            continue;
-        while (size() > budget && next[field].length)
-            next[field].shift();
+    // Oldest unpinned items go first; pinned items are skipped, never trimmed.
+    for (const field of LIST_FIELDS) {
+        let index = 0;
+        while (size() > budget && index < next[field].length) {
+            if (isPinned(pinned, field, next[field][index]))
+                index += 1;
+            else
+                next[field].splice(index, 1);
+        }
     }
     if (size() > budget)
-        throw new Error("Your pinned capsule exceeds the token budget. Shorten it manually or increase the budget, then save again.");
+        throw new Error("Your pinned capsule exceeds the token budget. Unpin or shorten some items, or increase the budget, then save again.");
     return next;
 }
 exports.PROJECT_INSTRUCTION = `After meaningful progress, output a complete update block using only explicit project facts, with no secrets. Keep next_step to one concrete action. Put replacements in changes; include a verbatim source_excerpt for each replacement. Never overwrite user-pinned facts. Use this exact format:\n<<<SOLVANE_UPDATE v1\n{"decisions_add":[],"done_add":[],"open_questions_add":[],"open_questions_resolve":[],"constraints_add":[],"next_step":"","changes":[]}\nSOLVANE_UPDATE>>>`;
+exports.DEFAULT_CAPSULE_PRIVACY = { includeDecisions: true, includeConstraints: true, includeArtifacts: true, excludeCode: false };
+/** The one handoff text that the dashboard, the extension and handoff.md all send, with the person's privacy choices applied. */
+function buildCapsulePrompt(input) {
+    const privacy = { ...exports.DEFAULT_CAPSULE_PRIVACY, ...(input.privacy ?? {}) };
+    const { state } = input;
+    const clean = (value) => (privacy.excludeCode ? value.replace(/```[\s\S]*?```/g, "[code intentionally excluded]") : value);
+    const section = (title, items) => (items.length ? [`${title}:\n${items.map((item) => `- ${clean(item)}`).join("\n")}`] : []);
+    return [
+        "SOLVANE CONTINUITY CAPSULE",
+        ...(input.projectName ? [`Project: ${input.projectName}`] : []),
+        `Objective: ${clean(state.objective)}`,
+        `Current task: ${clean(state.currentTask)}`,
+        ...(privacy.includeDecisions ? section("Decisions", state.decisions) : []),
+        ...(privacy.includeConstraints ? section("Constraints", state.constraints) : []),
+        ...section("Completed", state.completed),
+        ...section("Open questions", state.openQuestions),
+        ...section("Do not repeat", state.doNotRepeat),
+        ...(privacy.includeArtifacts ? [...section("Artifacts", state.artifacts), ...section("Sources", state.sources)] : []),
+        `NEXT STEP: ${clean(state.nextAction)}`,
+        "Continue from this state. Do not claim access to hidden reasoning or missing chat history. Ask only for information that truly blocks the next step.",
+        "First restate the goal, current task and next step to confirm understanding, then continue.",
+        exports.PROJECT_INSTRUCTION,
+    ].join("\n\n");
+}
 exports.CHECKPOINT_RESPONSE_SCHEMA = {
     type: "object", additionalProperties: false,
     required: ["decisions_add", "done_add", "open_questions_add", "open_questions_resolve", "constraints_add", "next_step", "changes"],

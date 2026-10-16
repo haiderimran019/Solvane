@@ -1,5 +1,116 @@
 # Solvane pilot test report
 
+## Code health (Phase 4, #11) — 16 October 2026
+
+- **Removed scaffolding the app never used:**
+  - the 61 shadcn UI components, plus the `use-mobile` hook, the `cn` helper and `components.json` that only they used;
+  - the connector-error template component;
+  - the vendored shadcn stylesheet;
+  - `examples/d1`;
+  - three Next.js template icons;
+  - the committed Vite dependency cache (`.vite/`, now git-ignored).
+- **Removed 19 npm dependencies used only by those files**, which drops 169 installed packages. Runtime dependencies are now `next`, `react`, `react-dom`, `drizzle-orm`, `lucide-react` and `zod`; `zod` is kept for the Sites connector runtime. The connector and Sites build files stay because the Sites hosting runtime uses them.
+- **Split the dashboard.** `app/relay-dashboard.tsx` (884 lines) keeps the state and actions. Its 44 view components, types and helpers moved to `app/_dashboard/` (the underscore keeps the folder out of routing). All 45 declarations are byte-identical to before; only `export` and one relative import path changed. The result type-checks cleanly with `--noUnusedLocals`.
+
+Verified: TypeScript, ESLint, every test suite and the production build pass. In the running dashboard, every view, the handoff dialog and the profile panel render with no console errors or failed requests.
+
+## API mode hygiene (Phase 4, #10) — 16 October 2026
+
+- **Current default models (checked against provider docs today):**
+  - Claude `claude-opus-5-5`, replacing the retired `claude-3-5-haiku-latest`.
+  - ChatGPT `gpt-6-luna`, OpenAI's named replacement for `gpt-4o-mini`, which shuts down on 14 January 2027.
+  - Gemini `gemini-3.8-flash`, and `gemini-3.5-flash-lite` for checkpoints. Gemini 2.5 now serves only accounts that already used it.
+  - Perplexity `sonar`, unchanged.
+  - All are still overridable with environment variables and per-key model fields.
+- **Provider request shapes:**
+  - Current Claude models send an explicit medium effort.
+  - Claude models that support it opt into Anthropic's server-side refusal fallback (`fallbacks: "default"`, beta `server-side-fallback-2026-07-01`), and a Claude refusal is detected rather than read as an empty answer.
+  - Gemini extraction sends `thinkingLevel: LOW` to 3.x models and `thinkingBudget: 0` to 2.x.
+  - Perplexity sources are read from `search_results` when `citations` is absent.
+  - Chat turns allow 8,000 output tokens and 90 seconds.
+- **Spending caps on every platform key.** Each call made with a workspace-owned key, for any provider, is reserved against the daily caps first, at that provider's conservative prices. `PLATFORM_DAILY_SPEND_USD` is the overall cap; the old `GEMINI_DAILY_SPEND_USD` still applies when it is unset. Personal (BYOK) keys are not capped. Before, only Gemini platform calls were capped.
+- **Fallback on rejection.**
+  - A rejected key (401/403), an unknown or retired model (404), a rejected request (400), a Claude refusal, or the platform cap now hands the turn to the next connected provider. Before, it stopped the turn.
+  - Error messages name each provider's reason, for example "Claude doesn't recognize the model."
+  - ADR 004 records the revised rule.
+
+Tests: four route tests cover rejection and refusal fallback with readable errors, the Claude request body and headers for current and older models, platform-key reservation and the cap stopping calls, and Gemini thinking control by generation. All four fail against the previous code.
+
+Not verified: live calls with real keys. The request shapes come from the providers' current docs and are exercised against scripted responses only.
+
+## Honest UI (Phase 3) — 16 October 2026
+
+- **Home follows your providers.** The source is the first provider in the project's order. The target is the default handoff, else the provider continued in last, else ChatGPT, then the rest of the order, never the source. The hero, button, diagram and phone Continue all use them. Existing projects with default settings still show Claude → ChatGPT.
+- **No hardcoded status:**
+  - The header shows the real capsule version and save time, or "Not saved yet" with an amber dot.
+  - The sidebar says "Saved to your account / Open it on any signed-in device" instead of claiming live sync.
+  - The Home note reports "Nothing saved yet", "Capsule needs more context" (amber) or "Ready to continue" from the actual capsule.
+  - The readiness facts describe the process ("Saved only after your review", "Common secret formats redacted").
+- **Rename and delete:**
+  - A pencil beside the project title renames inline.
+  - Advanced → Delete this project removes its capsule versions, messages and events, keeping only an archived "Deleted project" row with its processing-limit reservations. Deleting projects therefore cannot reset the daily Gemini allowance.
+  - Deleted projects return 404 for reads, renames, restores, handoffs and deletes, and are not counted on the account page.
+- **Full history.** Version history loads 12 at a time with "Show older versions".
+
+Tests:
+- Continue-target rules: unit test.
+- History paging, rename, and deletion (content removed, reservations kept, 404s afterwards): route tests.
+
+Verified in the dashboard:
+- Default settings show Claude → ChatGPT, and switching the default handoff to Gemini changed the hero, button and diagram.
+- The header and the amber note reflect a 45% capsule.
+- Rename updated the title, header, sidebar and server.
+- A 14-version project paged v14–v3, then v2–v1.
+- Deleting a project showed the confirmation, switched projects, returned 404 for the old ID, and kept the account count consistent.
+- A fresh tab visiting every view logged no console errors.
+
+## Extension reliability (Phase 2) — 15 October 2026
+
+- **One capsule builder (0.4.3).** The dashboard, the extension and `handoff.md` all use `buildCapsulePrompt` from the shared core. Extension handoffs are now readable sections with the project name and real line breaks (previously a JSON dump with literal `\n`), and they apply the dashboard's privacy choices, which now sync to the extension.
+- **0.4.4:**
+  - Alt+S uses the physical key, so Option+S works on macOS (it types `ß`).
+  - Insert capsule simulates a paste over the composer, so ProseMirror keeps line breaks as paragraphs and the draft is replaced. The fallback is `execCommand("insertText")`.
+  - Chat links moved from synced storage (8 KB per item, about 80 links) to local storage. Old links migrate on first read.
+  - Queued captures expire after 7 days, and the chip no longer pulses every 30 seconds.
+  - The direct page-origin fetch fallback and the server CORS allowance for provider sites are removed. An extension update now shows "Reload this tab".
+  - The release ZIP is rebuilt from scratch without the `127.0.0.1:5173` dev origin, and the service worker reads its allowed origins from the manifest.
+
+Verified in the runtime fixture against the local API:
+- An Option+S key event opened the drawer.
+- Legacy synced links merged into local storage and left synced storage.
+- An 8-day-old capture was removed; a legacy capture was given a timestamp.
+- The chip stayed still.
+- A real ProseMirror editor received the capsule as six paragraphs, with the draft replaced.
+- A textarea composer received it with newlines and one input event.
+- A lost extension connection showed the reload message and kept the capture.
+- The service worker forwards to production in both builds, reaches the dev origin only from the unpacked source, and refuses other origins.
+
+- **Fewer clicks (0.4.5):**
+  - An unlinked chat preselects the last-used project with a visible note.
+  - Review update links the chat to the selected project, so there is no separate Link click, and the review shows "Saving to <project>".
+  - With no previous project nothing is preselected, and saving asks for a choice.
+  - The dashboard Home shows a 3-step setup card until every step is done or it is hidden: add the project instruction to Claude (copying it marks the step done), install the extension, save once. The Advanced checklist starts with the instruction step.
+
+Live Claude, ChatGPT and Gemini composers still need a manual insertion check.
+
+## Save-logic fixes — 15 October 2026
+
+Three defects in save → review → continue were reproduced against a local build and fixed:
+
+1. **Pins froze fields.** Undo, Restore and every manual edit pinned whole fields permanently, there was no unpin, and a pinned field silently ignored changes the user accepted ("Saved" with nothing changed). Pins are now per item (list items, plus goal/current task/next step). Only manual edits and Edit & pin create them. Undo and Restore copy an earlier version with that version's pins. A pinned item is never pre-selected, and accepting a change to it is applied and releases the pin. Project memory shows a pin toggle on every item. Older whole-field pins are converted to pins on the items present at read time.
+2. **A list change wiped the list.** A `changes` entry on a list field replaced the entire list and split the new text at commas. It now replaces only the matching item. If nothing matches, the value is offered as an unselected new item and nothing is deleted.
+3. **Re-saving after Undo was ignored.** Save idempotency was keyed on the pasted text, so saving the same paste after an Undo answered "Already saved" with an older version. It is now keyed on the review (text, base version, decisions and edits), so retries still replay. A review that accepts nothing creates no new version.
+
+Undo and Restore send `restoreVersion`; bare-state Undo from extension 0.4.1 still works and pins nothing. The extension is now 0.4.2.
+
+| Gate | Result |
+| --- | --- |
+| Checkpoint / engine / automation / providers | 28 / 6 / 10 / 2 passed |
+| New save-route tests (`npm run test:save`) | 6 passed; all 6 fail against the previous code |
+| Extension contract | Passed |
+| Production build | Passed |
+| TypeScript / ESLint | No new errors. The existing `hosting.json` typing error and 3 lint errors remain (separate fix). |
+
 ## Focused continuity UI — 15 October 2026
 
 The primary product surface was rebuilt around the agreed Claude → Solvane → ChatGPT flow. The previous three-column operations dashboard is no longer the default experience.
@@ -115,7 +226,7 @@ The browser fixture found a real over-escaped update-block regex bug. It was fix
 
 Processing reservations are atomic and conservative. They enforce per-user/per-IP burst limits, per-user daily calls/input, and a configurable daily reserved cost. Reservations live in the account event table; account deletion clears that table, so provider-side billing caps and the closed pilot access policy remain important against deliberate quota-reset abuse. Actual provider billing depends on configured model/prices.
 
-Redaction is pattern-based. It covers common API keys, bearer tokens, .env-style lines, JWTs and multiline private keys; it cannot identify every private fact. Pinned protection is currently at capsule-field granularity. Folder adoption is a bounded, reviewed project map, not an automatic whole-repository watcher.
+Redaction is pattern-based. It covers common API keys, bearer tokens, .env-style lines, JWTs and multiline private keys; it cannot identify every private fact. Pins protect individual list items and the goal, current task and next step (see the save-logic section above). Folder adoption is a bounded, reviewed project map, not an automatic whole-repository watcher.
 
 ## Hosted publication
 

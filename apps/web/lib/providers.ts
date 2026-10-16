@@ -10,7 +10,7 @@ export type ProviderResult = {
   requestId?: string;
 };
 
-type ClaudeResponse = { content?: Array<{ type?: string; text?: string }> };
+type ClaudeResponse = { stop_reason?: string; content?: Array<{ type?: string; text?: string }> };
 type GeminiResponse = { candidates?: Array<{ content?: { parts?: Array<{ text?: string }> } }> };
 type OpenAIResponse = {
   output_text?: string;
@@ -18,15 +18,26 @@ type OpenAIResponse = {
 };
 type PerplexityResponse = {
   citations?: string[];
+  search_results?: Array<{ url?: string; title?: string }>;
   choices?: Array<{ message?: { content?: string } }>;
 };
 
+// Current Claude models: run at an explicit medium effort (adaptive thinking stays on). Those with Anthropic's
+// server-side refusal fallback opt into it, so a classifier decline is retried on another Claude model in-call.
+const CLAUDE_CURRENT_MODELS = new Set(["claude-fable-5-1", "claude-opus-5-5", "claude-opus-5", "claude-sonnet-5-5", "claude-haiku-5-5"]);
+const CLAUDE_FALLBACK_MODELS = new Set(["claude-fable-5-1", "claude-opus-5-5", "claude-opus-5", "claude-sonnet-5-5"]);
+
 export class ProviderCallError extends Error {
+  /**
+   * `retryable`: the same provider may succeed later (rate limit, outage, timeout).
+   * `fallback`: another provider should get the turn, which also covers a rejected key, unknown model or refusal.
+   */
   constructor(
     message: string,
     readonly provider: ProviderId,
     readonly status: number,
     readonly retryable: boolean,
+    readonly fallback: boolean = retryable,
   ) {
     super(message);
   }
@@ -67,14 +78,20 @@ async function requestJson<T>(
     const response = await fetch(url, { ...init, signal: controller.signal });
     const data = (await response.json().catch(() => ({}))) as T;
     if (!response.ok) {
-      const retryable = response.status === 402 || response.status === 429 || response.status >= 500;
+      const status = response.status;
+      const retryable = status === 402 || status === 429 || status >= 500;
+      // 400/401/403/404 mean this provider can't serve the turn as configured (bad key, retired model, no access):
+      // pointless to retry here, but another connected provider may succeed.
+      const rejected = [400, 401, 403, 404].includes(status);
       throw new ProviderCallError(
-        retryable
-          ? `${provider} is temporarily unavailable.`
-          : `${provider} rejected the request.`,
+        retryable ? `${PROVIDERS[provider].name} is temporarily unavailable.`
+          : status === 401 || status === 403 ? `${PROVIDERS[provider].name} rejected the API key.`
+            : status === 404 ? `${PROVIDERS[provider].name} doesn't recognize the model.`
+              : `${PROVIDERS[provider].name} rejected the request.`,
         provider,
-        response.status,
+        status,
         retryable,
+        retryable || rejected,
       );
     }
     return { data, response };
@@ -82,8 +99,8 @@ async function requestJson<T>(
     if (error instanceof ProviderCallError) throw error;
     throw new ProviderCallError(
       error instanceof DOMException && error.name === "AbortError"
-        ? `${provider} timed out.`
-        : `${provider} could not be reached.`,
+        ? `${PROVIDERS[provider].name} timed out.`
+        : `${PROVIDERS[provider].name} could not be reached.`,
       provider,
       0,
       true,
@@ -107,6 +124,7 @@ export async function callProvider(args: {
   const maxTokens = args.maxTokens ?? 1200;
 
   if (provider === "claude") {
+    const fallbacks = CLAUDE_FALLBACK_MODELS.has(model);
     const { data, response } = await requestJson<ClaudeResponse>(
       provider,
       "https://api.anthropic.com/v1/messages",
@@ -116,11 +134,21 @@ export async function callProvider(args: {
           "content-type": "application/json",
           "x-api-key": apiKey,
           "anthropic-version": "2023-06-01",
+          ...(fallbacks ? { "anthropic-beta": "server-side-fallback-2026-07-01" } : {}),
         },
-        body: JSON.stringify({ model, system, messages, max_tokens: maxTokens }),
+        body: JSON.stringify({
+          model,
+          system,
+          messages,
+          max_tokens: maxTokens,
+          ...(CLAUDE_CURRENT_MODELS.has(model) ? { output_config: { effort: "medium" } } : {}),
+          ...(fallbacks ? { fallbacks: "default" } : {}),
+        }),
       },
       timeoutMs,
     );
+    // A refusal is an HTTP 200 without a usable answer; another provider may still continue the project.
+    if (data.stop_reason === "refusal") throw new ProviderCallError(`${PROVIDERS[provider].name} declined this request.`, provider, 200, false, true);
     const text = (data.content ?? [])
       .filter((block) => block.type === "text")
       .map((block) => block.text ?? "")
@@ -146,7 +174,8 @@ export async function callProvider(args: {
         body: JSON.stringify({
           systemInstruction: { parts: [{ text: system }] },
           contents,
-          generationConfig: { maxOutputTokens: maxTokens, ...(args.responseSchema ? { responseMimeType: "application/json", responseJsonSchema: args.responseSchema, temperature: 0, thinkingConfig: { thinkingBudget: 0 } } : {}) },
+          // Gemini 3+ takes thinkingLevel (an error on 2.x); 2.x models take a token budget instead.
+          generationConfig: { maxOutputTokens: maxTokens, ...(args.responseSchema ? { responseMimeType: "application/json", responseJsonSchema: args.responseSchema, temperature: 0, thinkingConfig: /^gemini-2\./.test(model) ? { thinkingBudget: 0 } : { thinkingLevel: "LOW" } } : {}) },
         }),
       },
       timeoutMs,
@@ -210,9 +239,10 @@ export async function callProvider(args: {
     },
     timeoutMs,
   );
-  const citations = (data.citations ?? []).map((citation: string) => ({
-    url: citation,
-  }));
+  // Newer Sonar responses list sources in search_results; older ones in a top-level citations array.
+  const citations: Citation[] = data.citations?.length
+    ? data.citations.map((url) => ({ url }))
+    : (data.search_results ?? []).filter((result) => result.url).map((result) => ({ url: result.url as string, ...(result.title ? { title: result.title } : {}) }));
   return {
     text: data.choices?.[0]?.message?.content ?? "",
     citations,

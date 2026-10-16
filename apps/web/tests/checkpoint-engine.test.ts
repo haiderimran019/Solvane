@@ -32,13 +32,13 @@ test("real extraction pipeline uses structured JSON, redacts, bounds requests, a
   await assert.rejects(extractCheckpoint({text:"No storage decision",current,budget:1500,timeoutMs:500,generate:async()=>JSON.stringify({...empty,changes:[{field:"objective",from:"X",to:"invented",source_excerpt:"not in input"}]})}),CheckpointReadError);
 });
 
-test("reject really rejects additions; accepted edits are applied and later pinned fields stay intact",()=>{
+test("reject really rejects additions; accepted edits are applied, and accepted additions still apply beside pinned items",()=>{
   const patch={...empty,decisions_add:["Use SQLite"],next_step:"Test login"};
   const diff=diffCheckpoint(current,patch);
   assert.deepEqual(applyCheckpointPatch(current,patch,new Set()),current);
   const key=diff.find(item=>item.kind==="added")!.key;
   const next=applyCheckpointPatch(current,patch,new Set([key]),[],{[key]:"Use PostgreSQL"});assert.deepEqual(next.decisions,["Use PostgreSQL"]);
-  assert.deepEqual(applyCheckpointPatch(next,{...empty,decisions_add:["Use SQLite"]},new Set([key]),["decisions"]),next);
+  assert.deepEqual(applyCheckpointPatch(next,{...empty,decisions_add:["Use SQLite"]},new Set([key]),["decisions"]).decisions,["Use PostgreSQL","Use SQLite"]);
 });
 
 test("latest complete block wins, incomplete/unknown schema rejected, mixed item types rejected",()=>{

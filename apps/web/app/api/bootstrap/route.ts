@@ -5,17 +5,12 @@ import { folders, providerCredentials } from "../../../db/schema";
 import { configuredModel, platformKey } from "../../../lib/providers";
 import { PROVIDER_IDS, PROVIDERS, parseProviderOrder } from "../../../lib/product";
 import { apiUser, unauthorized } from "../../../lib/server";
-import { extensionOptions, withExtensionCors } from "../../../lib/extension-cors";
 
 export const dynamic = "force-dynamic";
 
-export function OPTIONS(request: Request) {
-  return extensionOptions(request);
-}
-
-export async function GET(request: Request) {
+export async function GET() {
   const user = await apiUser();
-  if (!user) return withExtensionCors(unauthorized(), request);
+  if (!user) return unauthorized();
 
   const db = getDb();
   let folderRows = await db
@@ -45,7 +40,7 @@ export async function GET(request: Request) {
     .from(providerCredentials)
     .where(eq(providerCredentials.userId, user.userId));
 
-  return withExtensionCors(Response.json({
+  return Response.json({
     user: { name: user.displayName, email: user.email },
     folders: folderRows.map((folder) => ({
       id: folder.id,
@@ -67,5 +62,5 @@ export async function GET(request: Request) {
         credentialStorageReady: Boolean(env.PROVIDER_CREDENTIAL_MASTER_KEY),
       };
     }),
-  }), request);
+  });
 }

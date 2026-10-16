@@ -27,9 +27,13 @@ export async function GET() {
   const user = await apiUser();
   if (!user) return unauthorized();
 
-  const [projectCount, messageCount, snapshotCount, handoffRows, connectionCount, analyticsEventCount] =
+  const [projectRows, messageCount, snapshotCount, handoffRows, connectionCount, analyticsEventCount] =
     await Promise.all([
-      countOwned(folders, user.userId),
+      // Deleted projects stay only as archived placeholders, so they are not counted.
+      getDb()
+        .select({ value: count() })
+        .from(folders)
+        .where(and(eq(folders.userId, user.userId), eq(folders.archived, false))),
       countOwned(messages, user.userId),
       countOwned(snapshots, user.userId),
       getDb()
@@ -47,7 +51,7 @@ export async function GET() {
       signInProvider: "ChatGPT",
     },
     counts: {
-      projects: projectCount,
+      projects: Number(projectRows[0]?.value ?? 0),
       messages: messageCount,
       capsuleVersions: snapshotCount,
       handoffs: Number(handoffRows[0]?.value ?? 0),

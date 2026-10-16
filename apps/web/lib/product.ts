@@ -22,7 +22,7 @@ export const PROVIDERS: Record<
     name: "Claude",
     shortName: "CL",
     role: "Thoughtful builder",
-    defaultModel: "claude-3-5-haiku-latest",
+    defaultModel: "claude-opus-5-5",
     color: "#f59e7a",
     webUrl: "https://claude.ai/new",
   },
@@ -30,7 +30,7 @@ export const PROVIDERS: Record<
     name: "Gemini",
     shortName: "GE",
     role: "Long-context analyst",
-    defaultModel: "gemini-2.5-flash",
+    defaultModel: "gemini-3.8-flash",
     color: "#7cb4ff",
     webUrl: "https://gemini.google.com/app",
   },
@@ -38,7 +38,7 @@ export const PROVIDERS: Record<
     name: "ChatGPT",
     shortName: "GP",
     role: "Fast creative partner",
-    defaultModel: "gpt-4o-mini",
+    defaultModel: "gpt-6-luna",
     color: "#70d6b3",
     webUrl: "https://chatgpt.com/",
   },
@@ -97,6 +97,16 @@ export function normalizeSnapshot(value: Partial<RelaySnapshot> | null | undefin
 
 export function isProviderId(value: unknown): value is ProviderId {
   return typeof value === "string" && PROVIDER_IDS.includes(value as ProviderId);
+}
+
+/**
+ * Where "Continue" goes: the chosen default handoff, else the provider continued in last, else ChatGPT (the v1
+ * Claude → ChatGPT route), then the rest of the order. Never the provider the person works in (first in order).
+ */
+export function continueTarget(order: ProviderId[], defaultHandoff: "last" | ProviderId, lastProvider?: ProviderId | null): ProviderId {
+  const source = order[0];
+  const candidates: Array<ProviderId | null | undefined> = [defaultHandoff === "last" ? null : defaultHandoff, lastProvider, "openai", ...order];
+  return candidates.find((provider): provider is ProviderId => Boolean(provider) && provider !== source) ?? "openai";
 }
 
 export function parseProviderOrder(value: string): ProviderId[] {

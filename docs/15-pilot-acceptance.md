@@ -26,9 +26,9 @@ Folder adoption uses a directory input under Save checkpoint. Metadata mode incl
 - Changed facts include a verbatim source_excerpt. The server rejects unsupported excerpts. Human review is still needed to judge whether a model extracted a fact correctly.
 - Final capsule budgeting removes oldest unpinned completed items first. Pinned content is never trimmed; if it cannot fit, saving asks the user to shorten it or change the budget. Token counts are estimates, not provider tokenizer counts.
 
-## Model research, checked 14 October 2026
+## Model research, checked 16 October 2026
 
-Google lists gemini-2.5-flash-lite at $0.10 input / $0.40 output per million text tokens, versus $0.30 / $2.50 for gemini-2.5-flash. Flash-Lite is the configurable platform-key checkpoint default. A real-key quality/latency evaluation is still required before claiming it passes the model fixtures. The deterministic and mocked-transport tests do not prove live model behavior.
+Google now limits Gemini 2.5 models to accounts that already used them and recommends `gemini-3.5-flash-lite` and `gemini-3.8-flash` for new projects, so the platform-key checkpoint default is `gemini-3.5-flash-lite` (override with `CHECKPOINT_GEMINI_MODEL`). Gemini 3 models take `thinkingLevel` instead of `thinkingBudget`; Solvane sends LOW for 3.x and a zero budget for 2.x. (14 October: gemini-2.5-flash-lite was listed at $0.10 input / $0.40 output per million text tokens.) A real-key quality/latency evaluation is still required before claiming it passes the model fixtures. The deterministic and mocked-transport tests do not prove live model behavior.
 
 Sources: [Google pricing](https://ai.google.dev/gemini-api/docs/pricing), [structured output](https://ai.google.dev/gemini-api/docs/structured-output), [Gemini data-use terms](https://ai.google.dev/gemini-api/terms). Google's unpaid service can use content to improve products; paid service terms differ. The app discloses Google processing and links the terms before submitting a paste.
 

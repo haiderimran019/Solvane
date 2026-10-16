@@ -2,15 +2,22 @@ import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import {
   applyCheckpointPatch,
+  buildCapsulePrompt,
   compressCheckpointPatch,
   diffCheckpoint,
   estimatePatchTokens,
+  fitCapsuleBudget,
+  itemPinKey,
+  normalizePins,
   parseSolvaneUpdateBlock,
+  pinsAfterReview,
+  pinsForManualEdit,
+  PROJECT_INSTRUCTION,
   redactSecrets,
   validateCheckpointPatch,
   type CheckpointPatch,
 } from "../lib/checkpoint.ts";
-import { normalizeSnapshot, type RelaySnapshot } from "../lib/product.ts";
+import { continueTarget, normalizeSnapshot, type RelaySnapshot } from "../lib/product.ts";
 
 const block = (json: string) => `<<<SOLVANE_UPDATE v1\n${json}\nSOLVANE_UPDATE>>>`;
 const cleanPatch = { decisions_add: ["Use local-first review"], done_add: ["Built checkpoint UI"], open_questions_add: [], open_questions_resolve: [], constraints_add: ["Stay under 1,500 tokens"], next_step: "Run the browser handoff test", changes: [] };
@@ -57,12 +64,17 @@ describe("checkpoint schema and merge rules", () => {
     assert.equal(validateCheckpointPatch({ ...cleanPatch, changes: [{ field: "not_a_capsule_field", from: "", to: "x" }] }).ok, false);
   });
 
-  it("keeps pinned fields safe while additive facts apply", () => {
+  it("never pre-selects a pinned field, but applies it when the person explicitly accepts", () => {
     const patch: CheckpointPatch = { ...cleanPatch, changes: [{ field: "objective", from: "Ship Solvane", to: "Change the company" }] };
-    const accepted = new Set(diffCheckpoint(base,patch).map((item)=>item.key));
-    const next = applyCheckpointPatch(base, patch, accepted, ["objective"]);
-    assert.equal(next.objective, base.objective);
-    assert.ok(next.decisions.includes("Use local-first review"));
+    const diff = diffCheckpoint(base, patch, ["objective"]);
+    const objective = diff.find((item) => item.field === "objective");
+    assert.equal(objective?.pinned, true);
+    assert.equal(objective?.autoApplicable, false);
+    const defaults = applyCheckpointPatch(base, patch, new Set(diff.filter((item) => item.autoApplicable).map((item) => item.key)), ["objective"]);
+    assert.equal(defaults.objective, base.objective);
+    assert.ok(defaults.decisions.includes("Use local-first review"));
+    const accepted = applyCheckpointPatch(base, patch, new Set(diff.map((item) => item.key)), ["objective"]);
+    assert.equal(accepted.objective, "Change the company");
   });
 
   it("queues edits and removals until accepted", () => {
@@ -121,5 +133,120 @@ describe("checkpoint schema and merge rules", () => {
     const huge: CheckpointPatch = { ...cleanPatch, decisions_add: Array.from({ length: 10 }, (_, index) => `Decision ${index} ${"long ".repeat(60)}`) };
     const compressed = compressCheckpointPatch(huge, 120);
     assert.ok(estimatePatchTokens(compressed) <= 120);
+  });
+});
+
+describe("continue target", () => {
+  it("follows the default handoff, then the last provider, then ChatGPT, and never the working provider", () => {
+    assert.equal(continueTarget(["claude", "gemini", "openai", "perplexity"], "last", null), "openai");
+    assert.equal(continueTarget(["claude", "gemini", "openai", "perplexity"], "gemini", "perplexity"), "gemini");
+    assert.equal(continueTarget(["claude", "gemini", "openai", "perplexity"], "last", "perplexity"), "perplexity");
+    assert.equal(continueTarget(["openai", "claude", "gemini", "perplexity"], "last", null), "claude");
+    assert.equal(continueTarget(["openai", "claude", "gemini", "perplexity"], "openai", "openai"), "claude");
+  });
+});
+
+describe("capsule prompt", () => {
+  const project = normalizeSnapshot({ ...base, completed: ["Built ```js\nlogin()\n``` flow"], artifacts: ["src/app.ts"], sources: ["https://example.com/spec"] });
+
+  it("is readable text with real line breaks, the project name and the update-block instruction", () => {
+    const prompt = buildCapsulePrompt({ projectName: "Project X", state: project });
+    assert.ok(prompt.startsWith("SOLVANE CONTINUITY CAPSULE\n\nProject: Project X\n\nObjective: Ship Solvane"));
+    assert.match(prompt, /Decisions:\n- Keep review human-controlled/);
+    assert.match(prompt, /NEXT STEP: Write the checkpoint tests/);
+    assert.ok(prompt.endsWith(PROJECT_INSTRUCTION));
+    assert.ok(!prompt.includes("\\n"), "no literal backslash-n sequences");
+    assert.ok(!buildCapsulePrompt({ state: project }).includes("Project:"));
+  });
+
+  it("applies every privacy choice", () => {
+    const prompt = buildCapsulePrompt({ state: project, privacy: { includeDecisions: false, includeConstraints: false, includeArtifacts: false, excludeCode: true } });
+    assert.doesNotMatch(prompt, /Decisions:|Constraints:|Artifacts:|Sources:/);
+    assert.doesNotMatch(prompt, /login\(\)/);
+    assert.match(prompt, /Built \[code intentionally excluded\] flow/);
+  });
+});
+
+describe("list changes replace one item", () => {
+  const empty: CheckpointPatch = { decisions_add: [], done_add: [], open_questions_add: [], open_questions_resolve: [], constraints_add: [], next_step: "", changes: [] };
+  const project = normalizeSnapshot({ ...base, decisions: ["Use SQLite", "Ship by Friday", "Keep the UI minimal"] });
+
+  it("replaces only the named item and keeps commas inside the new text", () => {
+    const patch: CheckpointPatch = { ...empty, changes: [{ field: "decisions", from: "Use SQLite", to: "Use Postgres, not SQLite" }] };
+    const [change] = diffCheckpoint(project, patch);
+    assert.equal(change.kind, "changed");
+    assert.equal(change.from, "Use SQLite");
+    assert.equal(change.autoApplicable, false);
+    const next = applyCheckpointPatch(project, patch, new Set([change.key]));
+    assert.deepEqual(next.decisions, ["Use Postgres, not SQLite", "Ship by Friday", "Keep the UI minimal"]);
+  });
+
+  it("applies several changes to the same list independently", () => {
+    const patch: CheckpointPatch = { ...empty, changes: [
+      { field: "decisions", from: "Use SQLite", to: "Use Postgres" },
+      { field: "decisions", from: "Ship by Friday", to: "Ship by Monday" },
+    ] };
+    const diff = diffCheckpoint(project, patch);
+    assert.equal(diff.length, 2);
+    const next = applyCheckpointPatch(project, patch, new Set(diff.map((item) => item.key)));
+    assert.deepEqual(next.decisions, ["Use Postgres", "Ship by Monday", "Keep the UI minimal"]);
+  });
+
+  it("offers an unmatched replacement as an unselected new item and deletes nothing", () => {
+    const patch: CheckpointPatch = { ...empty, changes: [{ field: "decisions", from: "Use Redis", to: "Use Memcached" }] };
+    const [item] = diffCheckpoint(project, patch);
+    assert.equal(item.kind, "added");
+    assert.equal(item.autoApplicable, false);
+    assert.equal(item.contradiction, true);
+    const next = applyCheckpointPatch(project, patch, new Set([item.key]));
+    assert.deepEqual(next.decisions, [...project.decisions, "Use Memcached"]);
+  });
+});
+
+describe("pins", () => {
+  const project = normalizeSnapshot({ ...base, decisions: ["Use SQLite", "Ship by Friday"], nextAction: "Write the migration" });
+
+  it("lets additions apply beside pinned items, and flags a change to a pinned item without pre-selecting it", () => {
+    const pins = [itemPinKey("decisions", "Use SQLite")];
+    const patch: CheckpointPatch = { ...cleanPatch, decisions_add: ["Add a Redis cache"], changes: [{ field: "decisions", from: "Use SQLite", to: "Use Postgres" }] };
+    const diff = diffCheckpoint(project, patch, pins);
+    const addition = diff.find((item) => item.text === "Add a Redis cache");
+    const change = diff.find((item) => item.kind === "changed" && item.field === "decisions");
+    assert.equal(addition?.autoApplicable, true);
+    assert.equal(change?.pinned, true);
+    assert.equal(change?.autoApplicable, false);
+    const defaults = applyCheckpointPatch(project, patch, new Set(diff.filter((item) => item.autoApplicable).map((item) => item.key)), pins);
+    assert.deepEqual(defaults.decisions, ["Use SQLite", "Ship by Friday", "Add a Redis cache"]);
+  });
+
+  it("trims the oldest unpinned items first and keeps pinned items", () => {
+    const long = (n: number) => `${n} ${"x".repeat(200)}`;
+    const large = normalizeSnapshot({ ...project, completed: Array.from({ length: 12 }, (_, n) => long(n)) });
+    const fit = fitCapsuleBudget(large, [itemPinKey("completed", long(0))], 300);
+    assert.equal(fit.completed[0], long(0));
+    assert.ok(fit.completed.length < large.completed.length);
+  });
+
+  it("migrates legacy whole-field pins to the items present now and drops pins for removed items", () => {
+    const pins = normalizePins(["decisions", "nextAction", "bogus", itemPinKey("constraints", "Gone")], project);
+    assert.deepEqual(pins.sort(), [itemPinKey("decisions", "Use SQLite"), itemPinKey("decisions", "Ship by Friday"), "nextAction"].sort());
+  });
+
+  it("pins only what a person changed in a manual edit", () => {
+    const edited = normalizeSnapshot({ ...project, nextAction: "Write the login page", decisions: ["Use SQLite", "Ship by Monday"] });
+    assert.deepEqual(pinsForManualEdit(project, edited).sort(), ["nextAction", itemPinKey("decisions", "Ship by Monday")].sort());
+    assert.deepEqual(pinsForManualEdit(project, project), []);
+  });
+
+  it("pins an Edit & pin, and releases a pin when its model value is accepted unedited", () => {
+    const patch: CheckpointPatch = { ...cleanPatch, decisions_add: ["Add a Redis cache"], next_step: "Ship the login page" };
+    const diff = diffCheckpoint(project, patch, ["nextAction"]);
+    const addition = diff.find((item) => item.kind === "added" && item.field === "decisions")!;
+    const nextStep = diff.find((item) => item.field === "nextAction")!;
+    const accepted = new Set([addition.key, nextStep.key]);
+    const edits = { [addition.key]: "Add a Redis cache for sessions" };
+    const after = applyCheckpointPatch(project, patch, accepted, ["nextAction"], edits);
+    assert.equal(after.nextAction, "Ship the login page");
+    assert.deepEqual(pinsAfterReview(["nextAction"], diff, accepted, edits, after), [itemPinKey("decisions", "Add a Redis cache for sessions")]);
   });
 });
