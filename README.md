@@ -1,6 +1,21 @@
 # Solvane
 
-Solvane is a continuity layer for people who work across Claude, Gemini, ChatGPT, Perplexity, Codex, and Claude Code. It turns the active state of a project into a small, inspectable **Continuity Capsule** and carries that capsule to the next model.
+**Start once. Continue anywhere.** Solvane keeps one project memory across Claude, ChatGPT, Gemini and Perplexity. Instead of re-explaining your project every time you switch models, you save a small, reviewable **Continuity Capsule** of where the work stands and carry it to the next model in one click.
+
+**[▶ Open the live pilot](https://solvane.rareyew64.chatgpt.site/)** · [Architecture](docs/01-system-architecture.md) · [Test guide](docs/11-real-world-test-guide.md)
+
+![Solvane landing page](docs/images/solvane-hero.png)
+
+## How it works
+
+1. **Save** — the browser extension captures the useful state of a chat (objective, decisions, constraints, open questions, next step), redacting secrets locally.
+2. **Review** — you see a diff of what was added, changed or removed before anything is stored.
+3. **Version** — every capsule is versioned, so you can undo or roll back.
+4. **Continue** — Solvane opens the next model and inserts the capsule. It never presses Send for you.
+
+## Built with
+
+`TypeScript` · `React 19` · `Vinext` · `Cloudflare Workers` · `D1 (SQLite)` · `Drizzle ORM` · `Tailwind CSS` · `Chrome Extension (Manifest V3)` · `Node test runner` · `Playwright`
 
 ## Current product focus
 
