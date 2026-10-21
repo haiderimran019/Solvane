@@ -1,0 +1,10 @@
+{
+  "name": "solvane-pages",
+  "private": true,
+  "type": "module",
+  "engines": { "node": ">=22.13.0" },
+  "scripts": {
+    "build": "node scripts/build-pages.mjs",
+    "test": "node --experimental-strip-types --test pages/workspace.test.mjs apps/web/tests/checkpoint.test.ts"
+  }
+}

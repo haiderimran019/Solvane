@@ -1,3 +1,29 @@
+# GitHub Pages workspace verification — 21 October 2026
+
+The public entry point is now a standalone browser workspace built from root `index.html` and `pages/`, sharing the existing capsule parser, redactor, diff/merge rules and prompt builder. It no longer links visitors through an MVP guide or requires ChatGPT-hosted admission. The server app and extension sources are preserved.
+
+## Checks completed for this change
+
+- Root `npm test`: **36 tests passed** (31 shared checkpoint tests and 5 workspace persistence/validation/history tests).
+- Root `npm run build`: **passed**, creating `_site` without dependencies or credentials.
+- Chromium end-to-end: example draft, per-change rejection, save, reload persistence, manual edit, copy capsule, Markdown download, version restore, undo, invalid update JSON, valid block review, redaction, and explicit acceptance of replacements.
+- JSON workspace download/import round trip, named project creation and switching: **passed**.
+- Browser layouts: Overview, Save progress, Project memory, Version history and Your data at **1440, 768, 390 and 320 px**; no horizontal document overflow.
+- Blocked/full storage: failed save preserves review and shows a recovery message; does not claim success.
+- HTML-like user input renders as ordinary text. No page errors or third-party resource requests in the public workspace checks.
+- Desktop and mobile screenshots inspected. Chromium emulation was used; physical-device Safari/Firefox interaction is not certified by these checks.
+- `git diff --check`: **passed**.
+
+## Public deployment contract
+
+The Pages workflow tests/builds the static workspace and uploads only `_site`. Settings → Pages → Source uses GitHub Actions. The intended public URL is https://haiderimran019.github.io/Solvane/. Check the workflow and public URL for the deployed revision; historical server results below are separate from this release.
+
+## Limits explicitly shown to visitors
+
+Browser-local persistence and JSON backups; no cloud account/sync, AI extraction, API automation or extension capture on Pages. Handoffs require copy/paste and the visitor’s own provider session. Redaction recognizes common secret patterns, not every sensitive value. No hosted-provider API behavior was claimed or tested for this static release.
+
+---
+
 # Solvane pilot test report
 
 ## Code health (Phase 4, #11) — 16 October 2026

@@ -1,5 +1,18 @@
 # Solvane Real-World MVP Test Guide
 
+> **Public GitHub Pages workspace (21 October 2026):** Open https://haiderimran019.github.io/Solvane/ without signing in. The instructions below describe the separate server/extension pilot. For the public workspace, follow this acceptance path:
+>
+> 1. Try an example, review individual changes, reject one, and save the rest.
+> 2. Reload and confirm the saved version remains. Edit the next step and save a second version.
+> 3. Restore version 1 in Version history; confirm a new version is added and older versions remain.
+> 4. Copy the capsule in Project memory, open your chosen provider, paste it manually and review before pressing Send. Download `handoff.md` as an alternative.
+> 5. Paste a complete `SOLVANE_UPDATE v1` block. Additions may be preselected; replacements/removals need explicit acceptance. Invalid JSON should show an error without clearing the paste.
+> 6. Export workspace JSON in Your data, then import it in a separate browser profile. Confirm names, capsules and history survive.
+> 7. Test at a narrow viewport and with blocked/full local storage. Failed saves must retain the review and never claim success.
+>
+> The public workspace has browser-local data, not cloud sync, AI extraction, API Automation or extension capture. No provider keys should be entered into it.
+
+
 Use test projects and non-confidential content. Solvane should preserve explicit project state, but it cannot transfer hidden reasoning, provider cookies, passwords, model quota, or subscription access.
 
 ## 1. Sign in and verify account isolation

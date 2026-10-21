@@ -17,3 +17,6 @@ build/
 
 apps/web/build/
 .openai/
+
+# Generated GitHub Pages output
+_site/
