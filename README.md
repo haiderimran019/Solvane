@@ -73,7 +73,7 @@ The separate acceptance workflow continues to check the server app. Historical s
 
 ## Engineering notes
 
-The public app uses browser-native JavaScript modules and CSS. The existing platform uses **TypeScript, React 19, Vinext, Cloudflare Workers, D1 (SQLite), Drizzle ORM, Tailwind CSS, Manifest V3, Node tests and Playwright**. The Pages build reuses the existing parser, redactor, diff/merge rules and capsule formatter rather than maintaining a second engine.
+The public app uses browser-native JavaScript modules and CSS, with self-hosted Poppins fonts under the [SIL Open Font License](pages/fonts/OFL.txt). Its black, coral, cream and warm-sand interface follows the supplied design reference. The existing platform uses **TypeScript, React 19, Vinext, Cloudflare Workers, D1 (SQLite), Drizzle ORM, Tailwind CSS, Manifest V3, Node tests and Playwright**. The Pages build reuses the existing parser, redactor, diff/merge rules and capsule formatter rather than maintaining a second engine.
 
 Solvane carries explicit, user-reviewed project state. It does not transfer hidden reasoning, provider sessions or subscriptions, bypass usage limits, or guarantee identical results across models. Provider accounts and availability are separate from Solvane.
 

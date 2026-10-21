@@ -1,4 +1,4 @@
-import { mkdir, readFile, writeFile, copyFile, rm } from 'node:fs/promises';
+import { mkdir, readFile, writeFile, copyFile, cp, rm } from 'node:fs/promises';
 import { stripTypeScriptTypes } from 'node:module';
 
 await rm('_site', { recursive: true, force: true });
@@ -12,7 +12,8 @@ for (const name of ['checkpoint', 'product']) {
   const source = await readFile(`apps/web/lib/${name}.ts`, 'utf8');
   await writeFile(`_site/lib/${name}.mjs`, stripTypeScriptTypes(source));
 }
-await copyFile('apps/web/public/favicon.svg', '_site/favicon.svg');
+await cp('pages/fonts', '_site/fonts', { recursive: true });
+await copyFile('pages/favicon.svg', '_site/favicon.svg');
 await copyFile('LICENSE', '_site/LICENSE');
 await writeFile('_site/.nojekyll', '');
 console.log('Built GitHub Pages workspace in _site (no server or secrets required).');
