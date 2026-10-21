@@ -2,7 +2,7 @@
 
 **Start once. Continue anywhere.** Solvane keeps one project memory across Claude, ChatGPT, Gemini and Perplexity. Instead of re-explaining your project every time you switch models, you save a small, reviewable **Continuity Capsule** of where the work stands and carry it to the next model in one click.
 
-**[▶ Open the live pilot](https://solvane.rareyew64.chatgpt.site/)** · [Architecture](docs/01-system-architecture.md) · [Test guide](docs/11-real-world-test-guide.md)
+**[▶ Project page](https://haiderimran019.github.io/Solvane/)** · [Hosted pilot](https://solvane.rareyew64.chatgpt.site/) (invite-only, ChatGPT sign-in) · [Architecture](docs/01-system-architecture.md) · [Test guide](docs/11-real-world-test-guide.md)
 
 ![Solvane landing page](docs/images/solvane-hero.png)
 
