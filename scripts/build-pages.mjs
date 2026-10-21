@@ -1,10 +1,15 @@
 import { mkdir, readFile, writeFile, copyFile, cp, rm } from 'node:fs/promises';
 import { stripTypeScriptTypes } from 'node:module';
+import { createHash } from 'node:crypto';
 
 await rm('_site', { recursive: true, force: true });
 await mkdir('_site/lib', { recursive: true });
-await copyFile('index.html', '_site/index.html');
-for (const file of ['app.mjs', 'workspace.mjs', 'styles.css']) {
+const stylesheet = await readFile('pages/styles.css', 'utf8');
+const stylesheetName = `styles-${createHash('sha256').update(stylesheet).digest('hex').slice(0, 12)}.css`;
+await writeFile(`_site/${stylesheetName}`, stylesheet);
+const html = await readFile('index.html', 'utf8');
+await writeFile('_site/index.html', html.replace('./styles.css', `./${stylesheetName}`));
+for (const file of ['app.mjs', 'workspace.mjs']) {
   await copyFile(`pages/${file}`, `_site/${file}`);
 }
 // The public workspace uses the same parsing, review and handoff engine as the server app.
