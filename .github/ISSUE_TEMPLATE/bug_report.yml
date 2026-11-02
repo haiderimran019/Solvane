@@ -1,0 +1,63 @@
+name: Bug report
+description: Report a reproducible problem in Solvane
+title: "[Bug]: "
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for reporting a bug. Remove private project content, chats, account data, and secrets before posting. Report vulnerabilities through the private security link instead.
+  - type: dropdown
+    id: area
+    attributes:
+      label: Area
+      options:
+        - Public GitHub Pages workspace
+        - Server app
+        - Browser extension
+        - Documentation or setup
+        - CI or tests
+        - Other
+    validations:
+      required: true
+  - type: textarea
+    id: problem
+    attributes:
+      label: What happened?
+      description: Describe the problem and what you expected instead.
+    validations:
+      required: true
+  - type: textarea
+    id: reproduce
+    attributes:
+      label: Steps to reproduce
+      placeholder: |
+        1. Open …
+        2. Select …
+        3. See …
+    validations:
+      required: true
+  - type: input
+    id: revision
+    attributes:
+      label: Version or commit
+      description: A commit SHA, deployment URL, or extension version if known.
+  - type: input
+    id: environment
+    attributes:
+      label: Environment
+      description: Operating system, browser, and relevant versions.
+  - type: textarea
+    id: evidence
+    attributes:
+      label: Safe evidence
+      description: Add sanitized logs or screenshots. Do not include secrets or private content.
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: Safety checks
+      options:
+        - label: I removed secrets, private chats, personal data, and account information.
+          required: true
+        - label: This is not a security vulnerability.
+          required: true

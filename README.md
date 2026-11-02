@@ -1,80 +1,106 @@
 # Solvane
 
-**Start once. Continue anywhere.** Keep your project’s goal, decisions, constraints and next step in a reviewable **Continuity Capsule**, then carry it into your next AI conversation.
+**Start once. Continue anywhere.**
 
-**[Open Solvane →](https://haiderimran019.github.io/Solvane/)** · [Architecture](docs/01-system-architecture.md) · [Verification report](TEST_REPORT.md) · [MIT license](LICENSE)
+Solvane is an open-source continuity workspace for moving a project between ChatGPT, Claude, Gemini, Perplexity, Codex, and Claude Code without rebuilding the context each time.
 
-The public app runs on **GitHub Pages**. It opens directly into a working workspace: no Solvane account, invitation, extension or API key is required. Work stays in the visitor’s browser.
+[![Acceptance checks](https://github.com/haiderimran019/Solvane/actions/workflows/ci.yml/badge.svg)](https://github.com/haiderimran019/Solvane/actions/workflows/ci.yml)
+[![GitHub Pages](https://github.com/haiderimran019/Solvane/actions/workflows/pages.yml/badge.svg)](https://github.com/haiderimran019/Solvane/actions/workflows/pages.yml)
+[![License: MIT](https://img.shields.io/badge/License-MIT-111111.svg)](LICENSE)
 
-## Try it in a minute
+**[Try Solvane](https://haiderimran019.github.io/Solvane/)** · [How it works](#how-it-works) · [Contribute](CONTRIBUTING.md) · [Architecture](docs/01-system-architecture.md)
 
-1. Open [Solvane](https://haiderimran019.github.io/Solvane/) and select **Try an example**, or **Save progress** to enter your own context.
-2. Select **Review changes**. Accept or reject each addition, replacement or removal.
-3. Save your selected changes as a new capsule version.
-4. In **Project memory**, review the handoff, copy your capsule, and open ChatGPT, Claude, Gemini or Perplexity. Paste it into the provider and press Send yourself.
-5. Use **Version history** to restore earlier context. Use **Your data** to export a JSON backup or import it in another browser.
+## About
 
-For structured updates, select **Paste an update block** and copy the AI instruction into your conversation. Paste the returned `SOLVANE_UPDATE v1` block into Solvane. Parsing and review happen locally using the same checkpoint engine as the server app. Ordinary chat summarization is not enabled on GitHub Pages; enter a short summary manually instead.
+AI tools are good at different things, but switching between them usually means writing the same project summary again. Solvane keeps the useful state in a small, editable **Continuity Capsule**: the goal, current task, decisions, constraints, completed work, open questions, sources, and next step.
 
-## What visitors can use
+You review every change before it is saved or shared. Solvane does not transfer hidden reasoning, provider sessions, cookies, passwords, subscriptions, or private model state.
 
-- Multiple named projects, saved in browser local storage.
-- Editable goals, tasks, decisions, constraints, completed work, questions, artifacts and next steps.
-- Individual change review, with replacements and removals requiring explicit acceptance for structured updates.
-- Version history, restore and undo that preserve earlier versions.
-- Clipboard handoffs to four providers and `handoff.md` export for coding agents.
-- JSON workspace export/import and local data reset.
-- Common secret-format redaction before review and handoff.
-- Responsive layouts, keyboard navigation, visible focus states and clipboard fallback.
+## Try the public workspace
 
-The app adds no analytics, tracking cookies, external fonts or third-party scripts. GitHub may receive ordinary hosting request data. Local storage is specific to this browser profile; anyone using that profile can read it. Export backups regularly. Redaction recognizes common patterns, so always review your text before sharing it.
+The [live GitHub Pages app](https://haiderimran019.github.io/Solvane/) works without an account or API key. Its data stays in your browser.
 
-## Public workspace and server architecture
+1. Select **Try an example** or create a project.
+2. Add progress and choose **Review changes**.
+3. Accept or reject each proposed change, then save a new version.
+4. Copy the reviewed capsule and continue in another AI tool.
+5. Export a JSON backup if you want to move the workspace to another browser.
 
-| | Public GitHub Pages app | Server app and extension |
-| --- | --- | --- |
-| Location | Root `index.html`, `pages/` | `apps/web`, `apps/extension` |
-| Data | Browser local storage, JSON backups | Authenticated account-scoped Cloudflare D1 |
-| Capture | Manual context, structured update blocks | Chat/file extraction and extension capture |
-| Handoff | Review, copy, open provider, paste | Browser Bridge and extension insertion |
-| AI APIs | No API keys or API calls | Server-only BYOK, routing and guarded failover |
-| Hosting | GitHub Pages | Requires Worker APIs, D1, identity and secrets |
+The public app supports multiple projects, version history, restore, structured update blocks, JSON import/export, `handoff.md` export, and common secret-pattern redaction.
 
-GitHub Pages serves static files; it cannot run the Worker APIs or database. The public app is a usable browser-based workflow with an explicit storage boundary. The existing server app and extension remain in the repository; they are not part of the Pages deployment. Cloud sync, AI extraction, API Automation and automatic extension insertion are not offered by the public workspace.
+## How it works
 
-## Run the public app locally
+```text
+Your project
+    ↓
+Continuity Capsule
+    ↓
+Review changes
+    ↓
+Save a version
+    ↓
+Continue in another AI tool
+```
 
-Requires Node.js 22.13 or newer and Python 3 for the preview server. The Pages build has no package dependencies.
+The repository contains two related experiences:
+
+| Experience | Best for | Storage | Status |
+| --- | --- | --- | --- |
+| Public workspace | Trying the core workflow | Browser local storage | Live on GitHub Pages |
+| Server app + browser extension | Account sync, assisted capture, and optional BYOK APIs | Cloudflare D1 + extension-local data | Source available; live integration checks remain |
+
+GitHub Pages cannot run the Worker APIs or database. Cloud sync, AI extraction, API Automation, and automatic extension insertion are therefore not part of the public workspace.
+
+## Run it locally
+
+The public workspace requires Node.js 22.13 or newer. Python 3 is only used here as a simple preview server.
 
 ```sh
+git clone https://github.com/haiderimran019/Solvane.git
+cd Solvane
 npm test
 npm run build
 python3 -m http.server 4173 --directory _site
 ```
 
-Open `http://localhost:4173`. The build generates `_site`, including browser JavaScript from the shared TypeScript checkpoint engine. Publish `_site`, rather than the repository root. All app assets use relative paths so the `/Solvane/` project URL works.
+Open `http://localhost:4173`.
 
-## GitHub Pages deployment
+For the full server app and extension, see [`apps/web/README.md`](apps/web/README.md) and [`apps/extension/README.md`](apps/extension/README.md).
 
-[The Pages workflow](.github/workflows/pages.yml) runs the shared engine and workspace tests, builds the static app, and deploys `_site` on changes to the public app on `main`. Repository **Settings → Pages → Source** must be **GitHub Actions**. No hosting keys or provider credentials are needed.
+## Contributing
 
-The separate acceptance workflow continues to check the server app. Historical server validation and current Pages verification are recorded separately in [TEST_REPORT.md](TEST_REPORT.md).
+Contributions are welcome. Useful places to start include:
+
+- making the public workspace easier to understand and use;
+- improving keyboard, screen-reader, mobile, and reduced-motion behavior;
+- adding edge-case tests for capsule review, version history, import/export, and redaction;
+- maintaining provider fixtures and resilient browser-extension adapters;
+- improving examples, diagrams, setup instructions, and privacy documentation.
+
+Read [CONTRIBUTING.md](CONTRIBUTING.md) before opening a pull request. It explains the two app paths, local checks, privacy boundaries, and how to propose a change. Please use the issue templates for bugs and feature ideas.
+
+## Project status
+
+The local-first GitHub Pages workspace is usable today. The server app and browser extension are still pre-production: provider websites change independently, and live authentication, insertion, API fallback, cross-device isolation, and legal/privacy review need real-world verification before broader deployment claims.
+
+See [implementation status](docs/08-implementation-status.md), [verification report](TEST_REPORT.md), and [real-world test guide](docs/11-real-world-test-guide.md) for the detailed boundary.
 
 ## Repository map
 
 | Path | Purpose |
 | --- | --- |
-| `index.html`, `pages/` | Public workspace interface, local persistence and focused tests |
-| `scripts/build-pages.mjs` | Dependency-free static build reusing the shared engine |
-| `.github/workflows/pages.yml` | GitHub Pages tests, build and deployment |
-| `apps/web` | Vinext/React server app, Worker APIs, D1 schema and shared capsule engine |
-| `apps/extension` | Chromium Browser Bridge extension source |
-| `docs` | Product, architecture, state, API, security and test documentation |
+| `index.html`, `pages/` | Public local-first workspace |
+| `scripts/build-pages.mjs` | Static Pages build |
+| `apps/web` | React/Vinext server app, Worker APIs, D1 schema, and shared capsule engine |
+| `apps/extension` | Chromium Browser Bridge extension |
+| `docs` | Product, architecture, security, API, and verification notes |
 
-## Engineering notes
+## Privacy and security
 
-The public app uses browser-native JavaScript modules and CSS, with self-hosted Poppins fonts under the [SIL Open Font License](pages/fonts/OFL.txt). Its black, coral, cream and warm-sand interface follows the supplied design reference. The existing platform uses **TypeScript, React 19, Vinext, Cloudflare Workers, D1 (SQLite), Drizzle ORM, Tailwind CSS, Manifest V3, Node tests and Playwright**. The Pages build reuses the existing parser, redactor, diff/merge rules and capsule formatter rather than maintaining a second engine.
+The public workspace adds no analytics, tracking cookies, external fonts, or third-party scripts. Its data is tied to the current browser profile, so export backups and review text before sharing it. Secret redaction is a safety aid, not a guarantee.
 
-Solvane carries explicit, user-reviewed project state. It does not transfer hidden reasoning, provider sessions or subscriptions, bypass usage limits, or guarantee identical results across models. Provider accounts and availability are separate from Solvane.
+Please report suspected vulnerabilities privately using the instructions in [SECURITY.md](SECURITY.md). Do not include secrets, private chats, or personal data in a public issue.
 
-For the server architecture, see [system architecture](docs/01-system-architecture.md), [provider adapters](docs/04-provider-adapters.md), [security and privacy](docs/05-security-privacy.md), and the [server pilot acceptance guide](docs/15-pilot-acceptance.md).
+## License
+
+Solvane is available under the [MIT License](LICENSE). The bundled Poppins font files use the [SIL Open Font License](pages/fonts/OFL.txt).
