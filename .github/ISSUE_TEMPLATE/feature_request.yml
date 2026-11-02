@@ -1,0 +1,56 @@
+name: Feature request
+description: Propose a focused improvement to Solvane
+title: "[Feature]: "
+labels: [enhancement]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Explain the user problem first. Solvane favors explicit review, small portable context, and safe fallbacks over invisible automation.
+  - type: textarea
+    id: problem
+    attributes:
+      label: User problem
+      description: Who has this problem, and when does it happen?
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed change
+      description: Describe the smallest useful outcome.
+    validations:
+      required: true
+  - type: dropdown
+    id: area
+    attributes:
+      label: Area
+      options:
+        - Public GitHub Pages workspace
+        - Server app
+        - Browser extension
+        - Documentation or developer experience
+        - Not sure
+    validations:
+      required: true
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives considered
+      description: Note any manual workaround or smaller option.
+  - type: textarea
+    id: safety
+    attributes:
+      label: Privacy and trust impact
+      description: Could this change what Solvane reads, stores, sends, or automates?
+    validations:
+      required: true
+  - type: checkboxes
+    id: boundaries
+    attributes:
+      label: Product boundaries
+      options:
+        - label: The proposal keeps saved and shared context visible to the user.
+          required: true
+        - label: The proposal does not depend on hidden provider data or bypass provider limits.
+          required: true

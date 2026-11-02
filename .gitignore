@@ -1,22 +1,15 @@
-.DS_Store
 **/.DS_Store
 *.tsbuildinfo
 
-output/
-tmp/
-.DS_Store
 .env
 .env.*
+.openai/
 node_modules/
 
-.openai/
 build/
-
 **/build/
-**/.openai/
-
-apps/web/build/
-.openai/
+output/
+tmp/
 
 # Generated GitHub Pages output
 _site/

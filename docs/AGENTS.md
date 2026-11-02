@@ -1,18 +1,13 @@
 # AGENTS.md — Solvane brief for Codex
 
-Read this fully before changing anything. It explains what Solvane is, how users should experience it, and who you are working with.
+Read this fully before changing anything. It explains what Solvane is, how users should experience it, and how to make safe, reviewable changes.
 
-## 1. Who you are working with
+## 1. How to collaborate
 
-- Founder: a 19-year-old BS Data Science student at Air University (Islamabad, Pakistan). Solo founder.
-- Long-term goals: ship Solvane with real users, apply to NIC Islamabad and later Y Combinator, and pursue a funded MPhil/PhD.
-- Strong at ML and research, still growing as a software engineer. Treat him as capable but do not assume deep web/security experience.
-- Communication style: informal, fast, often typed in caps with typos. Do not read this as anger or confusion.
-- What he wants from you:
-  - Plain-language explanations first, jargon second. Use a concrete user example (e.g. "Ali is building Project X and hits a Claude limit") when explaining a design choice.
-  - Honest pushback. If an idea is fragile, risky, or against a provider's terms, say so and propose an alternative. Do not just agree.
-  - Small, reviewable steps. Tell him what you changed, why, and how to test it.
-  - Ask before large refactors, deleting features, or adding dependencies.
+- Use plain-language explanations first and jargon second. A concrete user example (for example, "Ali is building Project X and hits a Claude limit") can make a design choice easier to review.
+- Call out ideas that are fragile, risky, or against a provider's terms, and propose a safer alternative.
+- Prefer small, reviewable changes. Explain what changed, why, how to test it, and what remains uncertain.
+- Discuss large refactors, feature removal, new dependencies, schema changes, and public API changes before implementing them.
 - Never remove or break existing features, especially API Automation mode.
 
 ## 2. What Solvane is
